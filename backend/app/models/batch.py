@@ -31,6 +31,7 @@ class Batch(Base, UUIDMixin, TimestampMixin):
     reviewer_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     members = relationship("BatchMember", back_populates="batch", cascade="all, delete-orphan")
+    batch_prompts = relationship("BatchPrompt", back_populates="batch", cascade="all, delete-orphan")
     batch_assignments = relationship("BatchAssignment", back_populates="batch", cascade="all, delete-orphan")
     entries = relationship("Entry", back_populates="batch")
 
@@ -44,6 +45,18 @@ class BatchMember(Base, UUIDMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
 
     batch = relationship("Batch", back_populates="members")
+
+
+class BatchPrompt(Base, UUIDMixin):
+    """Prompts assigned to a batch by Admin/Lead."""
+    __tablename__ = "batch_prompts"
+    __table_args__ = (UniqueConstraint("batch_id", "prompt_id", name="uq_batch_prompt"),)
+
+    batch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("batches.id", ondelete="CASCADE"))
+    prompt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prompts.id"))
+
+    batch = relationship("Batch", back_populates="batch_prompts")
+    prompt = relationship("Prompt", back_populates="batch_prompts")
 
 
 class BatchAssignment(Base, UUIDMixin):

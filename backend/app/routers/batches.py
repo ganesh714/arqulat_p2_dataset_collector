@@ -14,12 +14,12 @@ from typing import List
 import uuid
 
 from app.core.database import get_db
-from app.models.batch import Batch, BatchMember, BatchAssignment
+from app.models.batch import Batch, BatchMember, BatchAssignment, BatchPrompt
 from app.models.entry import Entry, EntryStatus
 from app.models.prompt import Prompt
 from app.models.user import User
-from app.schemas.batch import BatchCreate, BatchResponse, PromptAssignmentCreate
-from app.deps.auth import require_admin, get_current_user
+from app.schemas.batch import BatchCreate, BatchResponse, PromptAssignmentCreate, BatchPromptCreate
+from app.deps.auth import require_admin, require_lead, get_current_user
 
 router = APIRouter(prefix="/api/batches", tags=["batches"])
 
@@ -174,6 +174,22 @@ async def get_batch_detail(
             "entry_status": entry.status.value if entry else "no_entry",
         })
 
+    # Prompts assigned to this batch
+    batch_prompts_res = await db.execute(
+        select(Prompt).join(BatchPrompt, Prompt.id == BatchPrompt.prompt_id)
+        .where(BatchPrompt.batch_id == batch_id)
+    )
+    batch_prompts = batch_prompts_res.scalars().all()
+    batch_prompts_list = [
+        {
+            "id": str(p.id),
+            "code": p.code,
+            "prompt_text": p.prompt_text,
+            "tags": p.tags,
+        }
+        for p in batch_prompts
+    ]
+
     return {
         "id": str(batch.id),
         "name": batch.name,
@@ -184,8 +200,46 @@ async def get_batch_detail(
             "display_name": reviewer.display_name,
         } if reviewer else None,
         "contributors": member_list,
+        "batch_prompts": batch_prompts_list,
         "assignments": rows,
     }
+
+
+# ── Admin/Lead: Assign Prompts to Batch ──────────────────────────────
+
+@router.post("/{batch_id}/prompts")
+async def add_prompts_to_batch(
+    batch_id: uuid.UUID,
+    assignment_in: BatchPromptCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_lead)
+):
+    """
+    Admin or Lead assigns prompts to a batch.
+    """
+    batch_res = await db.execute(select(Batch).where(Batch.id == batch_id))
+    batch = batch_res.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    added = 0
+    ignored = 0
+    for pid in assignment_in.prompt_ids:
+        # Check if already added
+        existing = await db.execute(
+            select(BatchPrompt).where(
+                and_(BatchPrompt.batch_id == batch_id, BatchPrompt.prompt_id == pid)
+            )
+        )
+        if existing.scalar_one_or_none():
+            ignored += 1
+            continue
+            
+        db.add(BatchPrompt(batch_id=batch_id, prompt_id=pid))
+        added += 1
+
+    await db.commit()
+    return {"added": added, "ignored": ignored}
 
 
 # ── Reviewer: Assign Prompts to Contributors ─────────────────────────
@@ -223,6 +277,16 @@ async def assign_prompts(
     ignored = 0
 
     for prompt_id in assignment_in.prompt_ids:
+        # Validate prompt is in this batch
+        bp_res = await db.execute(
+            select(BatchPrompt).where(
+                and_(BatchPrompt.batch_id == batch_id, BatchPrompt.prompt_id == prompt_id)
+            )
+        )
+        if not bp_res.scalar_one_or_none():
+            ignored += 1 # Or raise error, but bulk is better with ignoring invalid ones
+            continue
+
         # Check if already assigned in this batch
         existing_res = await db.execute(
             select(BatchAssignment).where(

@@ -50,6 +50,7 @@ export default function BatchesPage() {
     setActiveBatch(batch);
     setPanelView('overview');
     setSelectedPromptIds(new Set());
+    setAdminSelectedPromptIds(new Set());
     await loadDetail(batch.id);
   }
 
@@ -62,12 +63,38 @@ export default function BatchesPage() {
     finally { setDetailLoading(false); }
   }
 
+  const [adminSelectedPromptIds, setAdminSelectedPromptIds] = useState(new Set());
+  const [addingPrompts, setAddingPrompts] = useState(false);
+
   function togglePrompt(id) {
     setSelectedPromptIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  }
+
+  function toggleAdminPrompt(id) {
+    setAdminSelectedPromptIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleAddPromptsToBatch() {
+    if (adminSelectedPromptIds.size === 0) return setToast({ type: 'error', message: 'Select at least one prompt' });
+    setAddingPrompts(true);
+    try {
+      const res = await api.post(`/api/batches/${activeBatch.id}/prompts`, {
+        prompt_ids: Array.from(adminSelectedPromptIds),
+      });
+      setAdminSelectedPromptIds(new Set());
+      setToast({ type: 'success', message: `Added ${res.data.added} prompts to batch. ${res.data.ignored} ignored.` });
+      await loadDetail(activeBatch.id);
+    } catch (err) {
+      setToast({ type: 'error', message: err.response?.data?.detail || 'Failed to add prompts' });
+    } finally { setAddingPrompts(false); }
   }
 
   async function handleAssign() {
@@ -97,8 +124,11 @@ export default function BatchesPage() {
     return { total: a.length, statusCounts };
   })() : null;
 
-  // Already assigned prompt IDs in this batch
+  // Already assigned prompt IDs in this batch (by Reviewer)
   const assignedPromptIds = new Set(detail?.assignments?.map(a => a.prompt_id) || []);
+  
+  // Prompts already added to this batch (by Admin)
+  const batchPromptIds = new Set(detail?.batch_prompts?.map(p => p.id) || []);
 
   const reviewerUsers = users.filter(u => ['reviewer', 'lead'].includes(u.role));
   const contributorUsers = users.filter(u => u.role === 'contributor');
@@ -244,7 +274,11 @@ export default function BatchesPage() {
                   <button className={`btn btn-sm ${panelView === 'overview' ? 'btn-primary' : 'btn-outline'}`}
                     onClick={() => setPanelView('overview')}>Overview</button>
                   <button className={`btn btn-sm ${panelView === 'assign' ? 'btn-primary' : 'btn-outline'}`}
-                    onClick={() => setPanelView('assign')}>+ Assign Prompts</button>
+                    onClick={() => setPanelView('assign')}>Assign to Team</button>
+                  {(user?.role === 'admin' || user?.role === 'lead') && (
+                    <button className={`btn btn-sm ${panelView === 'manage_prompts' ? 'btn-primary' : 'btn-outline'}`}
+                      onClick={() => setPanelView('manage_prompts')}>+ Add Prompts to Batch</button>
+                  )}
                 </div>
               </div>
 
@@ -316,7 +350,7 @@ export default function BatchesPage() {
                 )
               )}
 
-              {/* ── ASSIGN PROMPTS ── */}
+              {/* ── ASSIGN PROMPTS (Reviewer View) ── */}
               {panelView === 'assign' && (
                 <>
                   {/* Contributor Picker */}
@@ -341,16 +375,16 @@ export default function BatchesPage() {
                     </button>
                   </div>
 
-                  {/* Prompt Checklist */}
+                  {/* Prompt Checklist from Batch's Prompts */}
                   <label style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: 8, display: 'block' }}>
-                    Select Prompts ({prompts.length} total, {assignedPromptIds.size} already assigned in this batch)
+                    Select Prompts ({detail.batch_prompts?.length || 0} total in this batch, {assignedPromptIds.size} already assigned)
                   </label>
 
-                  {prompts.length === 0 ? (
-                    <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts yet.</p>
+                  {(!detail.batch_prompts || detail.batch_prompts.length === 0) ? (
+                    <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts have been added to this batch yet.</p>
                   ) : (
                     <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                      {prompts.map(p => {
+                      {detail.batch_prompts.map(p => {
                         const alreadyAssigned = assignedPromptIds.has(p.id);
                         const checked = selectedPromptIds.has(p.id);
                         return (
@@ -370,6 +404,56 @@ export default function BatchesPage() {
                                 </span>
                                 {alreadyAssigned && (
                                   <span className="text-muted" style={{ fontSize: '0.7rem' }}>✓ assigned</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.85rem', lineHeight: 1.4 }}>{p.prompt_text}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── MANAGE PROMPTS (Admin/Lead View) ── */}
+              {panelView === 'manage_prompts' && (
+                <>
+                  <div style={{
+                    display: 'flex', gap: 12, marginBottom: 16, padding: '12px 16px',
+                    background: 'var(--bg-primary)', borderRadius: 'var(--radius)', alignItems: 'center', justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '0.85rem' }}>Select prompts from the global pool to add to this batch.</span>
+                    <button className="btn btn-primary btn-sm" onClick={handleAddPromptsToBatch}
+                      disabled={addingPrompts || adminSelectedPromptIds.size === 0} style={{ whiteSpace: 'nowrap' }}>
+                      {addingPrompts ? <span className="spinner" /> : `Add to Batch (${adminSelectedPromptIds.size})`}
+                    </button>
+                  </div>
+
+                  {prompts.length === 0 ? (
+                    <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts exist in the system yet.</p>
+                  ) : (
+                    <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                      {prompts.map(p => {
+                        const alreadyInBatch = batchPromptIds.has(p.id);
+                        const checked = adminSelectedPromptIds.has(p.id);
+                        return (
+                          <label key={p.id} style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
+                            borderBottom: '1px solid var(--border)', cursor: alreadyInBatch ? 'default' : 'pointer',
+                            background: alreadyInBatch ? 'rgba(16,185,129,0.04)' : checked ? 'rgba(99,102,241,0.06)' : 'transparent',
+                            opacity: alreadyInBatch ? 0.6 : 1,
+                          }}>
+                            <input type="checkbox" checked={checked} disabled={alreadyInBatch}
+                              onChange={() => toggleAdminPrompt(p.id)}
+                              style={{ marginTop: 3, accentColor: 'var(--accent)' }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent)', fontFamily: 'monospace' }}>
+                                  {p.code || '—'}
+                                </span>
+                                {alreadyInBatch && (
+                                  <span className="text-muted" style={{ fontSize: '0.7rem' }}>✓ in batch</span>
                                 )}
                               </div>
                               <div style={{ fontSize: '0.85rem', lineHeight: 1.4 }}>{p.prompt_text}</div>

@@ -24,6 +24,11 @@ class BatchResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BatchPromptCreate(BaseModel):
+    """Admin/Lead assigns prompts to a batch."""
+    prompt_ids: List[uuid.UUID]
+
+
 class PromptAssignmentCreate(BaseModel):
     """Reviewer assigns prompts to a contributor within their batch."""
     prompt_ids: List[uuid.UUID]
