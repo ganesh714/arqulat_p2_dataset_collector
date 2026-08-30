@@ -61,6 +61,77 @@ async def add_prompt_to_batch(
         raise HTTPException(status_code=400, detail="Prompt already added to this batch")
     return {"status": "ok"}
 
+
+@router.get("/{batch_id}/detail")
+async def get_batch_detail(
+    batch_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Return a batch with all its assignments resolved to human-readable names.
+    Each assignment includes: prompt code/text, contributor name, reviewer name, entry status.
+    """
+    from sqlalchemy.orm import aliased
+
+    batch_res = await db.execute(select(Batch).where(Batch.id == batch_id))
+    batch = batch_res.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    # Get all assignments for this batch
+    assignments_res = await db.execute(
+        select(BatchAssignment).where(BatchAssignment.batch_id == batch_id)
+    )
+    assignments = assignments_res.scalars().all()
+
+    # Build detailed rows
+    rows = []
+    for a in assignments:
+        # Resolve prompt
+        p_res = await db.execute(select(Prompt).where(Prompt.id == a.prompt_id))
+        prompt = p_res.scalar_one_or_none()
+
+        # Resolve contributor
+        c_res = await db.execute(select(User).where(User.id == a.contributor_id))
+        contributor = c_res.scalar_one_or_none()
+
+        # Resolve reviewer
+        r_res = await db.execute(select(User).where(User.id == a.reviewer_id))
+        reviewer = r_res.scalar_one_or_none()
+
+        # Find entry status
+        entry_res = await db.execute(
+            select(Entry).where(
+                and_(
+                    Entry.batch_id == batch_id,
+                    Entry.prompt_id == a.prompt_id,
+                    Entry.contributor_id == a.contributor_id
+                )
+            )
+        )
+        entry = entry_res.scalar_one_or_none()
+
+        rows.append({
+            "assignment_id": str(a.id),
+            "prompt_code": prompt.code if prompt else None,
+            "prompt_text": prompt.prompt_text if prompt else "?",
+            "contributor_name": contributor.display_name if contributor else "?",
+            "contributor_id": str(a.contributor_id),
+            "reviewer_name": reviewer.display_name if reviewer else "?",
+            "reviewer_id": str(a.reviewer_id),
+            "entry_code": entry.code if entry else None,
+            "entry_status": entry.status.value if entry else "no_entry",
+        })
+
+    return {
+        "id": str(batch.id),
+        "name": batch.name,
+        "status": batch.status.value,
+        "created_at": batch.created_at.isoformat() if batch.created_at else None,
+        "assignments": rows,
+    }
+
 @router.post("/{batch_id}/assignments")
 async def assign_prompts(
     batch_id: uuid.UUID,
