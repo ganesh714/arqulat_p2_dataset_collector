@@ -6,6 +6,7 @@ export default function BatchesPage() {
   const { user } = useAuth();
   const [batches, setBatches] = useState([]);
   const [prompts, setPrompts] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Active batch + detail
@@ -20,6 +21,13 @@ export default function BatchesPage() {
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // Create batch form (admin only)
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newBatchName, setNewBatchName] = useState('');
+  const [newReviewerId, setNewReviewerId] = useState('');
+  const [newContributorIds, setNewContributorIds] = useState(new Set());
+  const [creatingBatch, setCreatingBatch] = useState(false);
+
   useEffect(() => { fetchData(); }, []);
   useEffect(() => {
     if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }
@@ -28,12 +36,12 @@ export default function BatchesPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const [batchesRes, promptsRes] = await Promise.all([
-        api.get('/api/batches'),
-        api.get('/api/prompts'),
-      ]);
-      setBatches(batchesRes.data);
-      setPrompts(promptsRes.data);
+      const requests = [api.get('/api/batches'), api.get('/api/prompts')];
+      if (user?.role === 'admin') requests.push(api.get('/api/users'));
+      const results = await Promise.all(requests);
+      setBatches(results[0].data);
+      setPrompts(results[1].data);
+      if (results[2]) setUsers(results[2].data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }
@@ -92,6 +100,38 @@ export default function BatchesPage() {
   // Already assigned prompt IDs in this batch
   const assignedPromptIds = new Set(detail?.assignments?.map(a => a.prompt_id) || []);
 
+  const reviewerUsers = users.filter(u => ['reviewer', 'lead'].includes(u.role));
+  const contributorUsers = users.filter(u => u.role === 'contributor');
+
+  function toggleNewContributor(id) {
+    setNewContributorIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleCreateBatch(e) {
+    e.preventDefault();
+    if (!newReviewerId) return setToast({ type: 'error', message: 'Select a reviewer' });
+    if (newContributorIds.size === 0) return setToast({ type: 'error', message: 'Select at least one contributor' });
+    setCreatingBatch(true);
+    try {
+      const res = await api.post('/api/batches', {
+        name: newBatchName,
+        reviewer_id: newReviewerId,
+        contributor_ids: Array.from(newContributorIds),
+      });
+      setNewBatchName(''); setNewReviewerId(''); setNewContributorIds(new Set());
+      setShowCreateForm(false);
+      setToast({ type: 'success', message: `Batch "${res.data.name}" created!` });
+      await fetchData();
+      selectBatch(res.data);
+    } catch (err) {
+      setToast({ type: 'error', message: err.response?.data?.detail || 'Failed to create batch' });
+    } finally { setCreatingBatch(false); }
+  }
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><span className="spinner" /></div>;
 
   return (
@@ -117,10 +157,51 @@ export default function BatchesPage() {
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
 
         {/* ── LEFT: Batch List ── */}
-        <div style={{ width: 240, flexShrink: 0 }}>
+        <div style={{ width: 260, flexShrink: 0 }}>
+          {/* Admin: Create Batch Button */}
+          {user?.role === 'admin' && (
+            <div style={{ marginBottom: 12 }}>
+              <button className="btn btn-primary" style={{ width: '100%', marginBottom: 8 }}
+                onClick={() => setShowCreateForm(v => !v)}>
+                {showCreateForm ? '✕ Cancel' : '+ Create New Batch'}
+              </button>
+
+              {showCreateForm && (
+                <form onSubmit={handleCreateBatch} className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.8rem' }}>Batch Name</label>
+                    <input type="text" className="form-input" required value={newBatchName}
+                      onChange={e => setNewBatchName(e.target.value)} placeholder="e.g. Week 1 Chairs" />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.8rem' }}>Reviewer</label>
+                    <select className="form-input" value={newReviewerId} onChange={e => setNewReviewerId(e.target.value)} required>
+                      <option value="">Select...</option>
+                      {reviewerUsers.map(u => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.8rem' }}>Contributors ({newContributorIds.size})</label>
+                    <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                      {contributorUsers.map(u => (
+                        <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          <input type="checkbox" checked={newContributorIds.has(u.id)} onChange={() => toggleNewContributor(u.id)} style={{ accentColor: 'var(--accent)' }} />
+                          {u.display_name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={creatingBatch}>
+                    {creatingBatch ? <span className="spinner" /> : 'Create Batch'}
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+
           {batches.length === 0 ? (
             <p className="text-muted" style={{ fontSize: '0.85rem', padding: 12 }}>
-              {user?.role === 'admin' ? 'No batches yet. Create one in the Batches tab.' : 'No batches assigned to you yet.'}
+              {user?.role === 'admin' ? 'No batches yet. Click the button above.' : 'No batches assigned to you yet.'}
             </p>
           ) : batches.map(b => (
             <button key={b.id} onClick={() => selectBatch(b)}
