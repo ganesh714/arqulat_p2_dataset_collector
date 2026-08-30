@@ -108,7 +108,20 @@ async def claim_job(
 
     await db.commit()
     await db.refresh(job)
-    return job
+
+    # Fetch linked entry to include script in response
+    entry_res = await db.execute(select(Entry).where(Entry.id == job.entry_id))
+    entry = entry_res.scalar_one_or_none()
+
+    return JobClaimResponse(
+        id=job.id,
+        entry_id=job.entry_id,
+        entry_code=entry.code if entry else None,
+        script=entry.script if entry else None,
+        status=job.status.value,
+        attempts=job.attempts,
+        started_at=job.started_at,
+    )
 
 
 # ─── Job Complete ───────────────────────────────────────────────────

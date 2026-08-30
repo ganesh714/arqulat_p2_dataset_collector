@@ -8,6 +8,8 @@ from datetime import datetime
 class JobClaimResponse(BaseModel):
     id: uuid.UUID
     entry_id: uuid.UUID
+    entry_code: Optional[str] = None
+    script: Optional[str] = None
     status: str
     attempts: int
     started_at: Optional[datetime] = None
