@@ -17,4 +17,3 @@ class Prompt(Base, UUIDMixin, TimestampMixin):
 
     category = relationship("Category", back_populates="prompts")
     entries = relationship("Entry", back_populates="prompt")
-    batch_prompts = relationship("BatchPrompt", back_populates="prompt")
