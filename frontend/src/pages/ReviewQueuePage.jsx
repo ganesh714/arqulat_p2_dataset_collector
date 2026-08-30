@@ -11,6 +11,7 @@ export default function ReviewQueuePage() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState('3d');
 
   useEffect(() => {
     fetchQueue();
@@ -105,16 +106,42 @@ export default function ReviewQueuePage() {
               <div style={{ marginBottom: 16 }}>
                 <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Generated Output</h3>
                 <div style={{ padding: 12, background: 'var(--bg-primary)', borderRadius: 'var(--radius)', marginTop: 8 }}>
-                  {activeEntry.render_url ? (
-                    <img src={activeEntry.render_url} alt="Render" style={{ width: '100%', borderRadius: 'var(--radius)' }} />
-                  ) : (
-                    <p className="text-muted" style={{ fontSize: '0.85rem' }}>No render available.</p>
-                  )}
-                  {activeEntry.glb_url && (
-                    <p style={{ fontSize: '0.85rem', marginTop: 8, wordBreak: 'break-all' }}>
-                      <a href={activeEntry.glb_url} target="_blank" rel="noreferrer">Download GLB</a>
-                    </p>
-                  )}
+                  <div className="ee-view-toggle" style={{ position: 'relative', top: 0, right: 0, marginBottom: 8, display: 'inline-flex' }}>
+                    <label className={viewMode === '3d' ? 'active' : ''}>
+                      <input type="radio" checked={viewMode === '3d'} onChange={() => setViewMode('3d')} />
+                      3D View
+                    </label>
+                    <label className={viewMode === 'render' ? 'active' : ''}>
+                      <input type="radio" checked={viewMode === 'render'} onChange={() => setViewMode('render')} />
+                      Render
+                    </label>
+                  </div>
+                  
+                  <div style={{ height: 300, background: '#1e1e1e', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                    {viewMode === '3d' ? (
+                      activeEntry.glb_url ? (
+                        <model-viewer
+                          src={`http://localhost:8000/api/entries/${activeEntry.id}/model?token=${localStorage.getItem('access_token')}`}
+                          auto-rotate
+                          camera-controls
+                          shadow-intensity="1"
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      ) : (
+                        <div className="text-muted" style={{ padding: 20 }}>No 3D model available.</div>
+                      )
+                    ) : (
+                      activeEntry.render_url ? (
+                        <img 
+                          src={`http://localhost:8000/api/entries/${activeEntry.id}/render?token=${localStorage.getItem('access_token')}`} 
+                          alt="Render" 
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                        />
+                      ) : (
+                        <div className="text-muted" style={{ padding: 20 }}>No render available.</div>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
 

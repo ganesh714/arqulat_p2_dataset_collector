@@ -22,6 +22,8 @@ from app.schemas.job import (
     WorkerRegister, WorkerHealthResponse,
 )
 from app.deps.worker_auth import verify_worker_token
+from app.deps.auth import require_admin
+from app.models.user import User
 
 router = APIRouter(tags=["jobs_workers"])
 
@@ -133,9 +135,17 @@ async def complete_job(
     _token: bool = Depends(verify_worker_token),
 ):
     """
-    Mark a job as done, upload render/GLB via the (stubbed) drive service,
+    Mark a job as done, upload render/GLB to Google Drive,
     and store the returned URLs on the Entry.
+
+    Files are organized in Drive as:
+        /{phase}/{subphase}/{category}/{entry_code}/render.png
+        /{phase}/{subphase}/{category}/{entry_code}/model.glb
     """
+    from sqlalchemy.orm import selectinload
+    from app.models.prompt import Prompt
+    from app.models.taxonomy import Category, Subphase, Phase
+
     result = await db.execute(select(Job).where(Job.id == job_id))
     job = result.scalar_one_or_none()
 
@@ -144,22 +154,40 @@ async def complete_job(
     if job.status != JobStatus.running:
         raise HTTPException(status_code=400, detail="Job is not in running state")
 
-    # Fetch the linked entry
+    # Fetch entry with taxonomy chain for folder path
     entry_res = await db.execute(select(Entry).where(Entry.id == job.entry_id))
     entry = entry_res.scalar_one_or_none()
+
+    # Build taxonomy-based folder path
+    folder_path = f"entries/{entry.id}"  # fallback
+    if entry and entry.prompt_id:
+        prompt_res = await db.execute(select(Prompt).where(Prompt.id == entry.prompt_id))
+        prompt = prompt_res.scalar_one_or_none()
+        if prompt and prompt.category_id:
+            cat_res = await db.execute(select(Category).where(Category.id == prompt.category_id))
+            category = cat_res.scalar_one_or_none()
+            if category and category.subphase_id:
+                sub_res = await db.execute(select(Subphase).where(Subphase.id == category.subphase_id))
+                subphase = sub_res.scalar_one_or_none()
+                if subphase and subphase.phase_id:
+                    phase_res = await db.execute(select(Phase).where(Phase.id == subphase.phase_id))
+                    phase = phase_res.scalar_one_or_none()
+                    if phase:
+                        entry_label = entry.code or str(entry.id)
+                        folder_path = f"{phase.name}/{subphase.name}/{category.name}/{entry_label}"
 
     drive = get_drive_service()
 
     # Upload render image if provided
     if body.render_file_b64:
         render_bytes = base64.b64decode(body.render_file_b64)
-        render_path = f"entries/{entry.id}/{body.render_filename}"
+        render_path = f"{folder_path}/{body.render_filename}"
         entry.render_url = await drive.upload(render_bytes, render_path)
 
     # Upload GLB file if provided
     if body.glb_file_b64:
         glb_bytes = base64.b64decode(body.glb_file_b64)
-        glb_path = f"entries/{entry.id}/{body.glb_filename}"
+        glb_path = f"{folder_path}/{body.glb_filename}"
         entry.glb_url = await drive.upload(glb_bytes, glb_path)
 
     now = datetime.now(timezone.utc)
@@ -235,7 +263,7 @@ async def worker_heartbeat(
 @router.get("/api/workers/health", response_model=List[WorkerHealthResponse])
 async def workers_health(
     db: AsyncSession = Depends(get_db),
-    _token: bool = Depends(verify_worker_token),
+    current_admin: User = Depends(require_admin),
 ):
     """
     List all workers with computed online/offline status.

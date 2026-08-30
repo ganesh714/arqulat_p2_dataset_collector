@@ -6,7 +6,7 @@ import uuid
 from app.core.database import get_db
 from app.models.entry import Entry, EntryStatus
 from app.models.review import Review, ReviewAction
-from app.models.batch import BatchAssignment
+from app.models.batch import Batch
 from app.models.notification import Notification
 from app.schemas.review import ReviewCreate, ReviewResponse
 from app.deps.auth import get_current_user, require_reviewer
@@ -37,21 +37,13 @@ async def submit_review(
         raise HTTPException(status_code=400, detail="Only submitted entries can be reviewed")
         
     # 2. Find the assigned reviewer for this entry
-    assign_res = await db.execute(
-        select(BatchAssignment).where(
-            and_(
-                BatchAssignment.batch_id == entry.batch_id,
-                BatchAssignment.prompt_id == entry.prompt_id,
-                BatchAssignment.contributor_id == entry.contributor_id
-            )
-        )
-    )
-    assignment = assign_res.scalar_one_or_none()
+    batch_res = await db.execute(select(Batch).where(Batch.id == entry.batch_id))
+    batch = batch_res.scalar_one_or_none()
     
-    if not assignment:
-        raise HTTPException(status_code=404, detail="No assignment found for this entry")
+    if not batch or not batch.reviewer_id:
+        raise HTTPException(status_code=400, detail="No reviewer assigned to this batch")
         
-    original_reviewer_id = assignment.reviewer_id
+    original_reviewer_id = batch.reviewer_id
     
     # 3. Check permissions and lead override
     is_lead_override = False

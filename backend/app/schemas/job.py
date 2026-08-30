@@ -35,6 +35,7 @@ class JobResponse(BaseModel):
     worker_id: Optional[uuid.UUID] = None
     attempts: int
     error_log: Optional[str] = None
+    is_test_run: bool = False
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Enum, ForeignKey, Integer
+from sqlalchemy import String, Text, Enum, ForeignKey, Integer, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import uuid
 import enum
@@ -23,6 +23,7 @@ class Job(Base, UUIDMixin, TimestampMixin):
     worker_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("workers.id"))
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     error_log: Mapped[Optional[str]] = mapped_column(Text)
+    is_test_run: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     
     started_at: Mapped[Optional[str]] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[Optional[str]] = mapped_column(DateTime(timezone=True))
