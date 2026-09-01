@@ -5,7 +5,8 @@ from datetime import datetime
 from app.models.entry import EntryStatus
 
 class EntryUpdate(BaseModel):
-    script: str
+    think_block: str
+    phase2_code: str
 
 class EntryResponse(BaseModel):
     id: uuid.UUID
@@ -13,7 +14,8 @@ class EntryResponse(BaseModel):
     prompt_id: uuid.UUID
     batch_id: uuid.UUID
     contributor_id: uuid.UUID
-    script: Optional[str] = None
+    think_block: Optional[str] = None
+    phase2_code: Optional[str] = None
     status: EntryStatus
     render_url: Optional[str] = None
     glb_url: Optional[str] = None

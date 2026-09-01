@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_REFRESH_TOKEN: Optional[str] = None
     
-    ADMIN_EMAIL: str = "admin@arqulat.com"
+    ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "adminpassword"
     WORKER_TOKEN: str = "worker_secret_token"
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"

@@ -22,6 +22,7 @@ from app.schemas.job import (
     WorkerRegister, WorkerHealthResponse,
 )
 from app.deps.worker_auth import verify_worker_token
+from app.core.script_assembly import assemble_executable_script
 from app.deps.auth import require_admin
 from app.models.user import User
 
@@ -115,11 +116,16 @@ async def claim_job(
     entry_res = await db.execute(select(Entry).where(Entry.id == job.entry_id))
     entry = entry_res.scalar_one_or_none()
 
+    # Assemble the full runnable script on the fly for the worker (no think block)
+    full_script = None
+    if entry:
+        full_script = assemble_executable_script(entry.phase2_code)
+
     return JobClaimResponse(
         id=job.id,
         entry_id=job.entry_id,
         entry_code=entry.code if entry else None,
-        script=entry.script if entry else None,
+        script=full_script,
         status=job.status.value,
         attempts=job.attempts,
         started_at=job.started_at,

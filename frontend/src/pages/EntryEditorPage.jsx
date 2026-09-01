@@ -4,19 +4,125 @@ import api from '../api';
 
 const POLL_INTERVAL = 3000;
 
+// ─── Copy‑prompt template ───────────────────────────────────────────
+function buildInstructionsTemplate(categoryName, promptText) {
+  return `You are an expert Python developer for Blender (bpy), working on a structured dataset with a fixed format.
+
+Your task is to produce TWO things for the given prompt: a THINK BLOCK and PHASE 2 CODE. Do not include imports, scene setup, or export/render code — those are fixed and added automatically by our system.
+
+===== PART 1: THINK BLOCK =====
+A structured reasoning plan with this exact structure:
+
+To create "[EXACT PROMPT TEXT]" procedurally in Blender, I need [1-line high-level approach].
+
+1. Materials:
+   - "[MaterialName]": [base color as (R, G, B)], Roughness=[value]. [Shader technique if any].
+
+2. Geometry Strategy: [primitives, modifiers, techniques used].
+
+3. [ComponentName]: [exact dimensions in meters, vertex/segment counts, modifier settings, position as (x,y,z), material used].
+
+4. [ComponentName]: ...
+   ... one numbered section per distinct part ...
+
+N. Pipeline: All parts joined into "[FinalObjectName]". Exported as GLB. Rendered with EEVEE_NEXT (EEVEE fallback) at 512x512, transparent background.
+
+Rules:
+- Be specific and numerical (e.g. "Legs (4 pieces): cylinders (radius=0.015, depth=0.41) at 45° intervals" — not "create legs using cylinders")
+- All dimensions in meters, using realistic furniture scale (chair seat ~0.45m high)
+- Use realistic material colors, not pure RGB values
+
+===== PART 2: PHASE 2 CODE =====
+Python code for ONLY the materials, helper functions, geometry construction, and final assembly. Follow these rules:
+- Do NOT include: import statements, scene setup, camera/light creation, export, or render calls — these are added automatically.
+- Define materials using Principled BSDF via bpy.data.materials.new() + use_nodes=True + nodes.get("Principled BSDF")
+- Build geometry using bpy.ops.mesh.primitive_*_add(), bmesh, or curves as appropriate. Name every object descriptively. Call shade_smooth() after creating visible objects.
+- Collect all created parts in a list called \`parts = []\`
+- End with the standard assembly pattern: select all parts, join them, name the result, apply transforms, and ground it at z=0
+- The VERY LAST LINE of your code MUST be exactly: final_object_name = "YourObjectVariableName"
+  (this must match the Python variable holding your final joined object)
+
+Avoid: bpy.ops.object.shade_naked() [doesn't exist], ShaderNodeTexClouds [doesn't exist, use ShaderNodeTexNoise], numpy or random imports, hardcoded file paths, GLTF_SEPARATE export format.
+
+Output the Think Block and Phase 2 Code as two clearly separated blocks so I can copy them individually.
+
+===== USER REQUEST =====
+Category: ${categoryName}
+Prompt: ${promptText}`;
+}
+
+// ─── Fixed sections reference content ───────────────────────────────
+const FIXED_IMPORTS_REF = `import bpy
+import bmesh
+import math
+import os
+from mathutils import Vector`;
+
+const FIXED_PHASE1_REF = `# ==============================================================================
+# Phase 1: Setup and Clean Scene
+# ==============================================================================
+bpy.ops.wm.read_factory_settings(use_empty=True)`;
+
+const FIXED_PHASE3_REF = `# ==============================================================================
+# Phase 3: Export & Render
+# ==============================================================================
+light_data = bpy.data.lights.new(name="Light", type='AREA')
+light_data.energy = 1000
+light_data.size = 5.0
+light_obj = bpy.data.objects.new(name="Light", object_data=light_data)
+bpy.context.collection.objects.link(light_obj)
+light_obj.location = (4, -4, 5)
+
+cam_data = bpy.data.cameras.new("Camera")
+cam_obj = bpy.data.objects.new("Camera", cam_data)
+bpy.context.collection.objects.link(cam_obj)
+bpy.context.scene.camera = cam_obj
+cam_obj.location = (0, -6, 3)
+
+tt = cam_obj.constraints.new(type='TRACK_TO')
+tt.target = {{OBJECT}}
+tt.track_axis = 'TRACK_NEGATIVE_Z'
+tt.up_axis = 'UP_Y'
+bpy.context.view_layer.update()
+
+cwd = os.getcwd()
+bpy.ops.object.select_all(action='DESELECT')
+{{OBJECT}}.select_set(True)
+bpy.ops.export_scene.gltf(
+    filepath=os.path.join(cwd, "model.glb"),
+    export_format='GLB',
+    use_selection=True,
+    export_apply=True
+)
+
+try:
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
+except TypeError:
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+
+bpy.context.scene.render.filepath = os.path.join(cwd, "render.png")
+bpy.context.scene.render.resolution_x = 512
+bpy.context.scene.render.resolution_y = 512
+bpy.context.scene.render.film_transparent = True
+bpy.ops.render.render(write_still=True)`;
+
+
 export default function EntryEditorPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [entry, setEntry] = useState(null);
   const [prompt, setPrompt] = useState(null);
-  const [script, setScript] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [thinkBlock, setThinkBlock] = useState('');
+  const [phase2Code, setPhase2Code] = useState('');
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Test-run state
   const [running, setRunning] = useState(false);
@@ -42,11 +148,26 @@ export default function EntryEditorPage() {
       const found = res.data.find((e) => e.id === id);
       if (!found) { setError('Entry not found'); setLoading(false); return; }
       setEntry(found);
-      setScript(found.script || '');
+      setThinkBlock(found.think_block || '');
+      setPhase2Code(found.phase2_code || '');
 
       try {
         const promptRes = await api.get(`/api/prompts/${found.prompt_id}`);
         setPrompt(promptRes.data);
+
+        // Fetch category name from taxonomy
+        try {
+          const taxRes = await api.get('/api/taxonomy');
+          for (const phase of taxRes.data) {
+            for (const sub of (phase.subphases || [])) {
+              for (const cat of (sub.categories || [])) {
+                if (cat.id === promptRes.data.category_id) {
+                  setCategoryName(cat.name);
+                }
+              }
+            }
+          }
+        } catch { /* taxonomy fetch failed, category stays empty */ }
       } catch { setPrompt(null); }
 
       // Fetch latest jobs
@@ -63,11 +184,23 @@ export default function EntryEditorPage() {
     }
   }
 
+  // ─── Copy Instructions ──────────────────────────────────────
+  function handleCopyInstructions() {
+    const text = buildInstructionsTemplate(
+      categoryName || 'unknown',
+      prompt?.prompt_text || ''
+    );
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   async function handleSave() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await api.patch(`/api/entries/${id}`, { script });
+      const res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
       setEntry(res.data);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -79,10 +212,10 @@ export default function EntryEditorPage() {
   }
 
   async function handleSubmit() {
-    if (!script.trim()) { setError('Cannot submit an empty script.'); return; }
+    if (!phase2Code.trim()) { setError('Cannot submit an empty phase 2 script.'); return; }
     setSubmitting(true);
     try {
-      await api.patch(`/api/entries/${id}`, { script });
+      await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
       const res = await api.post(`/api/entries/${id}/submit`);
       setEntry(res.data);
     } catch (err) {
@@ -106,11 +239,24 @@ export default function EntryEditorPage() {
 
   // ─── Test Run ─────────────────────────────────────────────
   async function handleTestRun() {
-    if (!script.trim()) { setError('Cannot run an empty script.'); return; }
+    if (!phase2Code.trim()) { setError('Cannot run an empty phase 2 script.'); return; }
+    
+    // Client-side hard block for final_object_name
+    const lines = phase2Code.split('\n').filter(l => l.trim() !== '');
+    if (lines.length === 0) {
+      setError('Phase 2 code is empty.');
+      return;
+    }
+    const lastLine = lines[lines.length - 1];
+    if (!/^final_object_name\s*=\s*['"]?[A-Za-z0-9_]+['"]?/.test(lastLine.trim())) {
+      setError('Phase 2 code must end with exactly: final_object_name = "YourVariableName" (or without quotes).');
+      return;
+    }
+    
     setRunning(true);
     setError('');
     try {
-      const res = await api.post(`/api/entries/${id}/test-run`, { script });
+      const res = await api.post(`/api/entries/${id}/test-run`, { think_block: thinkBlock, phase2_code: phase2Code });
       setLatestJob(res.data);
       startPolling();
     } catch (err) {
@@ -161,6 +307,16 @@ export default function EntryEditorPage() {
       mv.setAttribute('auto-rotate', '');
     }
   }
+
+  // Compute the live object name for the reference panel
+  const liveObjectName = (() => {
+    if (!phase2Code) return '{{OBJECT}}';
+    const lines = phase2Code.split('\n').filter(l => l.trim() !== '');
+    if (lines.length === 0) return '{{OBJECT}}';
+    const last = lines[lines.length - 1].trim();
+    const m = last.match(/^final_object_name\s*=\s*['"]?([A-Za-z0-9_]+)['"]?/);
+    return m ? m[1] : '{{OBJECT}}';
+  })();
 
   // ─── Render ──────────────────────────────────────────────
   if (loading) {
@@ -214,8 +370,20 @@ export default function EntryEditorPage() {
         <div className="entry-editor-left">
           {/* Prompt */}
           <div className="ee-prompt-card">
-            <div className="ee-prompt-label">Prompt {prompt?.code ? `(${prompt.code})` : ''}</div>
-            <div className="ee-prompt-text">{prompt?.prompt_text || 'Loading prompt...'}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <div className="ee-prompt-label">Prompt {prompt?.code ? `(${prompt.code})` : ''}</div>
+                <div className="ee-prompt-text">{prompt?.prompt_text || 'Loading prompt...'}</div>
+              </div>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={handleCopyInstructions}
+                title="Copy AI instructions to clipboard"
+                style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
+              >
+                {copied ? '✓ Copied!' : '📋 Copy Instructions'}
+              </button>
+            </div>
             {prompt?.tags?.length > 0 && (
               <div className="ee-prompt-tags">
                 {prompt.tags.map((tag, i) => (
@@ -232,9 +400,23 @@ export default function EntryEditorPage() {
             </div>
           )}
 
-          {/* Script editor */}
+          {/* Think Block editor */}
           <div className="ee-editor-header">
-            <span>Blender Python Script</span>
+            <span>Think Block</span>
+          </div>
+          <textarea
+            className="ee-script-textarea"
+            style={{ minHeight: '150px' }}
+            value={thinkBlock}
+            onChange={(e) => setThinkBlock(e.target.value)}
+            disabled={!isEditable}
+            placeholder={`To create "..." procedurally in Blender, I need...`}
+            spellCheck={false}
+          />
+          
+          {/* Phase 2 Code editor */}
+          <div className="ee-editor-header" style={{ marginTop: 16 }}>
+            <span>Phase 2 Code</span>
             <div className="ee-editor-actions">
               {isEditable && (
                 <button
@@ -253,12 +435,30 @@ export default function EntryEditorPage() {
           </div>
           <textarea
             className="ee-script-textarea"
-            value={script}
-            onChange={(e) => setScript(e.target.value)}
+            style={{ minHeight: '300px' }}
+            value={phase2Code}
+            onChange={(e) => setPhase2Code(e.target.value)}
             disabled={!isEditable}
-            placeholder={`import bpy\n\n# Your Blender script here...\n# This script will be executed by the worker to generate\n# the 3D model and render for this prompt.`}
+            placeholder={`# Your Phase 2 Blender script here...\n# Ends with an assignment like: final_object_name = "my_chair"`}
             spellCheck={false}
           />
+
+          {/* Fixed Sections Reference */}
+          <details className="ee-reference-panel" style={{ marginTop: 16 }}>
+            <summary className="ee-reference-summary">Fixed Sections Reference (Read-only)</summary>
+            <div className="ee-reference-body">
+              <div className="ee-reference-section-label">Imports (fixed)</div>
+              <pre className="ee-reference-code">{FIXED_IMPORTS_REF}</pre>
+
+              <div className="ee-reference-section-label" style={{ marginTop: 12 }}>Phase 1 — Scene Setup (fixed)</div>
+              <pre className="ee-reference-code">{FIXED_PHASE1_REF}</pre>
+
+              <div className="ee-reference-section-label" style={{ marginTop: 12 }}>
+                Phase 3 — Export &amp; Render (fixed, <code style={{ color: 'var(--accent)' }}>{`{{OBJECT}}`}</code> → <code style={{ color: 'var(--status-approved)' }}>{liveObjectName}</code>)
+              </div>
+              <pre className="ee-reference-code">{FIXED_PHASE3_REF.replaceAll('{{OBJECT}}', liveObjectName)}</pre>
+            </div>
+          </details>
 
           {/* Execution log */}
           {latestJob && (

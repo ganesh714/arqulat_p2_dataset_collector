@@ -19,7 +19,7 @@ export default function AppLayout() {
         <div className="sidebar-header">
           <h2>ARQULAT</h2>
           <div className="user-info">
-            {user?.display_name}
+            {user?.display_name || user?.username}
             <br />
             <span className="user-role">{user?.role}</span>
           </div>

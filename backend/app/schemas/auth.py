@@ -13,12 +13,13 @@ class TokenPayload(BaseModel):
     role: Optional[str] = None
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 class UserResponse(BaseModel):
     id: uuid.UUID
-    email: EmailStr
+    username: str
+    email: Optional[EmailStr] = None
     role: RoleEnum
     display_name: str
     created_at: datetime

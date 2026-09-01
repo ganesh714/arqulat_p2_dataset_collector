@@ -1,6 +1,6 @@
 from sqlalchemy import String, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import List
+from typing import List, Optional
 from app.models.base import Base, UUIDMixin, TimestampMixin
 import enum
 
@@ -13,7 +13,8 @@ class RoleEnum(str, enum.Enum):
 class User(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "users"
 
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    email: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     password_hash: Mapped[str] = mapped_column(String)
     role: Mapped[RoleEnum] = mapped_column(
         Enum(RoleEnum, name="role_enum", create_type=False),

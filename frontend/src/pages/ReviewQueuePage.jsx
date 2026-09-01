@@ -147,7 +147,7 @@ export default function ReviewQueuePage() {
 
               {/* Script */}
               <div style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Blender Script</h3>
+                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Think Block</h3>
                 <pre style={{ 
                   background: 'var(--bg-input)', 
                   padding: 12, 
@@ -155,9 +155,23 @@ export default function ReviewQueuePage() {
                   fontSize: '0.75rem',
                   maxHeight: 150,
                   overflowY: 'auto',
+                  marginTop: 8,
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {activeEntry.think_block}
+                </pre>
+                
+                <h3 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 16 }}>Phase 2 Code</h3>
+                <pre style={{ 
+                  background: 'var(--bg-input)', 
+                  padding: 12, 
+                  borderRadius: 'var(--radius)', 
+                  fontSize: '0.75rem',
+                  maxHeight: 200,
+                  overflowY: 'auto',
                   marginTop: 8
                 }}>
-                  {activeEntry.script}
+                  {activeEntry.phase2_code}
                 </pre>
               </div>
 

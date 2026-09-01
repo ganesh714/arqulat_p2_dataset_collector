@@ -29,10 +29,10 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function login(email, password) {
+  async function login(username, password) {
     // OAuth2PasswordRequestForm expects form-data with 'username' and 'password'
     const form = new URLSearchParams();
-    form.append('username', email);
+    form.append('username', username);
     form.append('password', password);
 
     const res = await api.post('/api/auth/login', form, {

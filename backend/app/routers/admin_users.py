@@ -23,12 +23,13 @@ async def create_user(
     Create a new user. Only Admins can create users.
     New users ALWAYS default to 'contributor' role.
     """
-    # Check if email exists
-    result = await db.execute(select(User).where(User.email == user_in.email))
+    # Check if username exists
+    result = await db.execute(select(User).where(User.username == user_in.username))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Username already registered")
         
     user = User(
+        username=user_in.username,
         email=user_in.email,
         password_hash=get_password_hash(user_in.password),
         display_name=user_in.display_name,

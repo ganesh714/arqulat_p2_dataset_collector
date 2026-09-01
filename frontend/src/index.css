@@ -72,6 +72,56 @@ a {
   cursor: not-allowed;
 }
 
+.ee-run-btn {
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.ee-run-btn:hover:not(:disabled) {
+  background: var(--bg-input);
+  border-color: var(--accent);
+}
+
+/* ── Reference Panel ── */
+.ee-reference-panel {
+  margin-top: 16px;
+}
+
+.ee-reference-summary {
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 4px 0;
+  color: var(--accent);
+}
+
+.ee-reference-body {
+  padding: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.ee-reference-section-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.ee-reference-code {
+  font-family: monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  background: var(--bg-primary);
+  padding: 8px;
+  border-radius: 4px;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
 .btn-outline {
   background: transparent;
   border-color: var(--border);

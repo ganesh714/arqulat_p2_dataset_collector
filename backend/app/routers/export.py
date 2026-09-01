@@ -15,6 +15,7 @@ from app.core.database import get_db
 from app.models.entry import Entry, EntryStatus
 from app.models.prompt import Prompt
 from app.models.taxonomy import Category
+from app.core.script_assembly import assemble_training_script
 from app.deps.auth import require_admin
 from app.models.user import User
 
@@ -46,7 +47,7 @@ async def export_dataset(
                 "entry_code": entry.code or "",
                 "prompt_code": entry.prompt.code or "",
                 "prompt": entry.prompt.prompt_text,
-                "script": entry.script or "",
+                "script": assemble_training_script(entry.think_block, entry.phase2_code),
                 "category": entry.prompt.category.name if entry.prompt.category else "",
             }
             yield json.dumps(line, ensure_ascii=False) + "\n"

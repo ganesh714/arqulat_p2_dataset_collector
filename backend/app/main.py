@@ -15,14 +15,15 @@ async def lifespan(app: FastAPI):
     # Seed initial Admin user on startup if it doesn't exist
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(User).where(User.email == settings.ADMIN_EMAIL)
+            select(User).where(User.username == settings.ADMIN_USERNAME)
         )
         admin = result.scalar_one_or_none()
         
         if not admin:
-            print(f"Seeding initial admin user: {settings.ADMIN_EMAIL}")
+            print(f"Seeding initial admin user: {settings.ADMIN_USERNAME}")
             admin = User(
-                email=settings.ADMIN_EMAIL,
+                username=settings.ADMIN_USERNAME,
+                email=None,
                 password_hash=get_password_hash(settings.ADMIN_PASSWORD),
                 role=RoleEnum.admin,
                 display_name="Admin"

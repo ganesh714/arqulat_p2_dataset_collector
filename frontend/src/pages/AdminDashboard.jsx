@@ -32,6 +32,7 @@ export default function AdminDashboard() {
 function UsersTab() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -49,8 +50,8 @@ function UsersTab() {
     e.preventDefault();
     setCreating(true);
     try {
-      await api.post('/api/users', { email, password, display_name: displayName });
-      setEmail(''); setPassword(''); setDisplayName('');
+      await api.post('/api/users', { username, email: email || null, password, display_name: displayName });
+      setUsername(''); setEmail(''); setPassword(''); setDisplayName('');
       fetchUsers();
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to create user');
@@ -71,6 +72,7 @@ function UsersTab() {
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
                 <th style={{ padding: '8px 0' }}>Display Name</th>
+                <th>Username</th>
                 <th>Email</th>
                 <th>Role</th>
                 <th>Actions</th>
@@ -80,7 +82,8 @@ function UsersTab() {
               {users.map(u => (
                 <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 0' }}>{u.display_name}</td>
-                  <td>{u.email}</td>
+                  <td>{u.username}</td>
+                  <td>{u.email || '-'}</td>
                   <td><span className="status-badge status-draft">{u.role}</span></td>
                   <td>
                     {u.role !== 'admin' && (
@@ -103,8 +106,12 @@ function UsersTab() {
         <h2 style={{ fontSize: '1.1rem', marginBottom: 16 }}>Create User</h2>
         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="form-group">
-            <label>Email</label>
-            <input type="email" required className="form-input" value={email} onChange={e => setEmail(e.target.value)} />
+            <label>Username</label>
+            <input type="text" required className="form-input" value={username} onChange={e => setUsername(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Email (Optional)</label>
+            <input type="email" className="form-input" value={email} onChange={e => setEmail(e.target.value)} />
           </div>
           <div className="form-group">
             <label>Password</label>
@@ -241,7 +248,7 @@ function BatchesTab() {
                       onChange={() => toggleContributor(u.id)} style={{ accentColor: 'var(--accent)' }} />
                     <div>
                       <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{u.display_name}</div>
-                      <div className="text-muted" style={{ fontSize: '0.75rem' }}>{u.email}</div>
+                      <div className="text-muted" style={{ fontSize: '0.75rem' }}>@{u.username} {u.email ? `(${u.email})` : ''}</div>
                     </div>
                   </label>
                 ))}

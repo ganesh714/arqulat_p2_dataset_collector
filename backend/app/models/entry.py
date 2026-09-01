@@ -19,7 +19,8 @@ class Entry(Base, UUIDMixin, TimestampMixin):
     prompt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("prompts.id"))
     batch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("batches.id"))
     contributor_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
-    script: Mapped[Optional[str]] = mapped_column(Text)
+    think_block: Mapped[Optional[str]] = mapped_column(Text)
+    phase2_code: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[EntryStatus] = mapped_column(
         Enum(EntryStatus, name="entry_status_enum", create_type=False),
         default=EntryStatus.draft

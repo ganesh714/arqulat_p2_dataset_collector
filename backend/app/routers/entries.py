@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models.entry import Entry, EntryStatus
 from app.models.batch import Batch
 from app.models.job import Job, JobStatus
+from app.core.script_assembly import validate_phase2_code, validate_think_block
 from app.schemas.entry import EntryUpdate, EntryResponse
 from app.schemas.job import JobResponse
 from app.deps.auth import get_current_user, require_contributor
@@ -110,7 +111,8 @@ async def update_entry_script(
     if entry.status not in [EntryStatus.draft, EntryStatus.needs_fix]:
         raise HTTPException(status_code=400, detail=f"Cannot edit entry in status: {entry.status}")
         
-    entry.script = entry_update.script
+    entry.think_block = entry_update.think_block
+    entry.phase2_code = entry_update.phase2_code
     await db.commit()
     await db.refresh(entry)
     return entry
@@ -136,6 +138,11 @@ async def submit_entry(
         
     entry.status = EntryStatus.submitted
     
+    # Validate before submit
+    errors = validate_phase2_code(entry.phase2_code)
+    if errors:
+        raise HTTPException(status_code=400, detail=" ".join(errors))
+        
     # Create a pending job for worker rendering
     new_job = Job(entry_id=entry.id, status=JobStatus.pending, is_test_run=False)
     db.add(new_job)
@@ -193,8 +200,14 @@ async def test_run_entry(
     if entry.status not in [EntryStatus.draft, EntryStatus.needs_fix]:
         raise HTTPException(status_code=400, detail=f"Cannot test-run entry in status: {entry.status}")
 
-    # Save the script
-    entry.script = entry_update.script
+    # Validate
+    errors = validate_phase2_code(entry_update.phase2_code)
+    if errors:
+        raise HTTPException(status_code=400, detail=" ".join(errors))
+
+    # Save the script components
+    entry.think_block = entry_update.think_block
+    entry.phase2_code = entry_update.phase2_code
     
     # Create a test-run job
     new_job = Job(entry_id=entry.id, status=JobStatus.pending, is_test_run=True)

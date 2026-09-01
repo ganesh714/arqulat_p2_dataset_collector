@@ -3,7 +3,8 @@ from typing import Optional
 from app.models.user import RoleEnum
 
 class UserCreate(BaseModel):
-    email: EmailStr
+    username: str
+    email: Optional[EmailStr] = None
     password: str
     display_name: str
     # role is intentionally omitted here to enforce server-side default of 'contributor'
