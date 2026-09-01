@@ -23,7 +23,7 @@ from app.schemas.job import (
 )
 from app.deps.worker_auth import verify_worker_token
 from app.core.script_assembly import assemble_executable_script
-from app.deps.auth import require_admin
+from app.deps.auth import require_admin, require_lead
 from app.models.user import User
 
 router = APIRouter(tags=["jobs_workers"])
@@ -269,7 +269,7 @@ async def worker_heartbeat(
 @router.get("/api/workers/health", response_model=List[WorkerHealthResponse])
 async def workers_health(
     db: AsyncSession = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_user: User = Depends(require_lead),
 ):
     """
     List all workers with computed online/offline status.

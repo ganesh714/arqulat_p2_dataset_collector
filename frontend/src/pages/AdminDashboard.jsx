@@ -162,7 +162,7 @@ function BatchesTab() {
     finally { setLoading(false); }
   }
 
-  const reviewers = users.filter(u => ['reviewer', 'lead'].includes(u.role));
+  const reviewers = users.filter(u => u.role === 'reviewer');
   const contributors = users.filter(u => u.role === 'contributor');
 
   function toggleContributor(id) {
