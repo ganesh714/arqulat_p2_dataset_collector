@@ -9,7 +9,6 @@ class Settings(BaseSettings):
     
     # Optional until Drive is implemented
     GOOGLE_DRIVE_FOLDER_ID: Optional[str] = None
-    GOOGLE_DRIVE_CREDENTIALS_PATH: Optional[str] = None
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
     GOOGLE_REFRESH_TOKEN: Optional[str] = None
