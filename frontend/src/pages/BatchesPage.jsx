@@ -130,7 +130,7 @@ export default function BatchesPage() {
   // Prompts already added to this batch (by Admin)
   const batchPromptIds = new Set(detail?.batch_prompts?.map(p => p.id) || []);
 
-  const reviewerUsers = users.filter(u => ['reviewer', 'lead'].includes(u.role));
+  const reviewerUsers = users.filter(u => u.role === 'reviewer');
   const contributorUsers = users.filter(u => u.role === 'contributor');
 
   function toggleNewContributor(id) {
