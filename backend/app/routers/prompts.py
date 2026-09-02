@@ -8,7 +8,7 @@ import uuid
 from app.core.database import get_db
 from app.models.prompt import Prompt
 from app.models.taxonomy import Category
-from app.schemas.prompt import PromptCreate, PromptResponse
+from app.schemas.prompt import PromptCreate, PromptResponse, BulkPromptCreate
 from app.deps.auth import require_lead, get_current_user
 from app.models.user import User
 
@@ -76,6 +76,77 @@ async def create_prompt(
     await db.commit()
     await db.refresh(new_prompt)
     return new_prompt
+
+@router.post("/bulk", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def bulk_create_prompts(
+    bulk_in: BulkPromptCreate,
+    db: AsyncSession = Depends(get_db),
+    current_lead: User = Depends(require_lead)
+):
+    """
+    Bulk create prompts. 
+    Returns the number of created prompts and a list of duplicates if any are found (and force_create=False).
+    """
+    if not bulk_in.prompts:
+        return {"created": 0, "duplicates": []}
+
+    # 1. Lock category row
+    cat_res = await db.execute(
+        select(Category).where(Category.id == bulk_in.category_id).with_for_update()
+    )
+    cat = cat_res.scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    code_prefix = _make_code_prefix(cat.name)
+    created_count = 0
+    all_duplicates = []
+
+    for text_val in bulk_in.prompts:
+        text_val = text_val.strip()
+        if not text_val:
+            continue
+
+        if not bulk_in.force_create:
+            duplicate_query = select(Prompt).where(
+                func.similarity(Prompt.prompt_text, text_val) > SIMILARITY_THRESHOLD
+            )
+            dup_res = await db.execute(duplicate_query)
+            duplicates = dup_res.scalars().all()
+            if duplicates:
+                dup_texts = [d.prompt_text[:50] + "..." for d in duplicates]
+                all_duplicates.extend(dup_texts)
+                continue
+
+        cat.prompt_counter += 1
+        code = f"{code_prefix}{cat.prompt_counter:04d}"
+
+        new_prompt = Prompt(
+            code=code,
+            category_id=bulk_in.category_id,
+            prompt_text=text_val,
+            tags=bulk_in.tags,
+            created_by=current_lead.id
+        )
+        db.add(new_prompt)
+        created_count += 1
+
+    if all_duplicates and created_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Fuzzy duplicates found for all prompts",
+                "similar_prompts": all_duplicates,
+                "duplicates_found": True
+            }
+        )
+        
+    await db.commit()
+    
+    return {
+        "created": created_count,
+        "duplicates": all_duplicates
+    }
 
 @router.get("", response_model=List[PromptResponse])
 async def list_prompts(

@@ -11,7 +11,9 @@ export default function PromptsPage() {
   const [subphaseId, setSubphaseId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [promptText, setPromptText] = useState('');
+  const [bulkText, setBulkText] = useState('');
   const [tags, setTags] = useState('');
+  const [mode, setMode] = useState('single'); // 'single' or 'bulk'
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   
@@ -48,21 +50,39 @@ export default function PromptsPage() {
     
     try {
       const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean);
-      await api.post('/api/prompts', {
-        category_id: categoryId,
-        prompt_text: promptText,
-        tags: tagsArray,
-        force_create: forceCreate
-      });
       
-      setPromptText('');
+      if (mode === 'single') {
+        await api.post('/api/prompts', {
+          category_id: categoryId,
+          prompt_text: promptText,
+          tags: tagsArray,
+          force_create: forceCreate
+        });
+        setPromptText('');
+      } else {
+        const promptsArray = bulkText.split('\n').filter(p => p.trim());
+        const res = await api.post('/api/prompts/bulk', {
+          category_id: categoryId,
+          prompts: promptsArray,
+          tags: tagsArray,
+          force_create: forceCreate
+        });
+        
+        if (res.data.duplicates?.length > 0 && res.data.created > 0) {
+          setError(`Created ${res.data.created} prompts, but skipped ${res.data.duplicates.length} duplicates.`);
+        } else if (res.data.created > 0) {
+          setError(`Successfully created ${res.data.created} prompts!`);
+        }
+        setBulkText('');
+      }
+      
       setTags('');
       fetchData();
     } catch (err) {
       if (err.response?.status === 409 && err.response?.data?.detail?.duplicates_found) {
         setDuplicateWarning(err.response.data.detail);
       } else {
-        setError(err.response?.data?.detail || 'Failed to create prompt');
+        setError(err.response?.data?.detail || 'Failed to create prompt(s)');
       }
     } finally {
       setSubmitting(false);
@@ -77,7 +97,24 @@ export default function PromptsPage() {
       </div>
 
       <div className="card mb-4" style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: 16 }}>Create New Prompt</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 style={{ fontSize: '1.1rem' }}>Create Prompts</h2>
+          <div className="flex gap-2">
+            <button 
+              className={`btn btn-sm ${mode === 'single' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setMode('single')}
+            >
+              Single
+            </button>
+            <button 
+              className={`btn btn-sm ${mode === 'bulk' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setMode('bulk')}
+            >
+              Bulk Add
+            </button>
+          </div>
+        </div>
+        
         {error && <div className="login-error mb-2">{error}</div>}
         
         {duplicateWarning && (
@@ -153,17 +190,32 @@ export default function PromptsPage() {
               ))}
             </select>
           </div>
-          
-          <div className="form-group">
-            <label>Prompt Text</label>
-            <textarea 
-              className="form-input" 
-              value={promptText}
-              onChange={e => setPromptText(e.target.value)}
-              required
-              style={{ minHeight: 80 }}
-            />
-          </div>
+          {mode === 'single' ? (
+            <div className="form-group">
+              <label>Prompt Text</label>
+              <textarea 
+                className="form-input" 
+                value={promptText}
+                onChange={e => setPromptText(e.target.value)}
+                required
+                style={{ minHeight: 80 }}
+                placeholder="Enter a single prompt..."
+              />
+            </div>
+          ) : (
+            <div className="form-group">
+              <label>Bulk Prompts (One per line)</label>
+              <textarea 
+                className="form-input" 
+                value={bulkText}
+                onChange={e => setBulkText(e.target.value)}
+                required
+                style={{ minHeight: 150, fontFamily: 'monospace', fontSize: '0.85rem' }}
+                placeholder="A beautiful red chair...&#10;A vintage wooden table...&#10;A modern glass desk..."
+              />
+              <p className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>Paste multiple prompts here. Each new line will be created as a separate prompt under the selected category.</p>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Tags (comma separated)</label>
@@ -178,7 +230,7 @@ export default function PromptsPage() {
 
           <div>
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? <span className="spinner"/> : 'Create Prompt'}
+              {submitting ? <span className="spinner"/> : (mode === 'single' ? 'Create Prompt' : 'Bulk Create Prompts')}
             </button>
           </div>
         </form>

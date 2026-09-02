@@ -9,6 +9,12 @@ class PromptCreate(BaseModel):
     tags: List[str] = []
     force_create: bool = False
 
+class BulkPromptCreate(BaseModel):
+    category_id: uuid.UUID
+    prompts: List[str]
+    tags: List[str] = []
+    force_create: bool = False
+
 class PromptResponse(BaseModel):
     id: uuid.UUID
     code: Optional[str] = None
