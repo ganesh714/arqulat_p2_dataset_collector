@@ -17,6 +17,12 @@ export default function PromptsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   
+  // Edit state
+  const [editingPromptId, setEditingPromptId] = useState(null);
+  const [editPromptText, setEditPromptText] = useState('');
+  const [editTags, setEditTags] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  
   // Duplicate handling state
   const [duplicateWarning, setDuplicateWarning] = useState(null);
 
@@ -86,6 +92,23 @@ export default function PromptsPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSaveEdit(id) {
+    setSavingEdit(true);
+    try {
+      const tagsArray = editTags.split(',').map(t => t.trim()).filter(Boolean);
+      await api.put(`/api/prompts/${id}`, {
+        prompt_text: editPromptText,
+        tags: tagsArray
+      });
+      setEditingPromptId(null);
+      fetchData();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to update prompt');
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -245,16 +268,67 @@ export default function PromptsPage() {
             <div key={p.id} className="card">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 600 }}>{p.code}</span>
+                {editingPromptId !== p.id && (
+                  <button 
+                    className="btn btn-outline btn-sm" 
+                    onClick={() => {
+                      setEditingPromptId(p.id);
+                      setEditPromptText(p.prompt_text);
+                      setEditTags((p.tags || []).join(', '));
+                    }}
+                    style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
-              <p style={{ fontSize: '0.95rem' }}>{p.prompt_text}</p>
-              {p.tags?.length > 0 && (
-                <div className="mt-2 flex gap-2">
-                  {p.tags.map(t => (
-                    <span key={t} style={{ fontSize: '0.7rem', background: 'var(--bg-input)', padding: '2px 8px', borderRadius: 12 }}>
-                      {t}
-                    </span>
-                  ))}
+              
+              {editingPromptId === p.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <textarea 
+                    className="form-input" 
+                    value={editPromptText}
+                    onChange={e => setEditPromptText(e.target.value)}
+                    style={{ minHeight: 60, fontSize: '0.95rem' }}
+                  />
+                  <input 
+                    type="text"
+                    className="form-input"
+                    value={editTags}
+                    onChange={e => setEditTags(e.target.value)}
+                    placeholder="Tags (comma separated)"
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                  <div className="flex gap-2 justify-end mt-1">
+                    <button 
+                      className="btn btn-outline btn-sm"
+                      onClick={() => setEditingPromptId(null)}
+                      disabled={savingEdit}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      onClick={() => handleSaveEdit(p.id)}
+                      disabled={savingEdit}
+                    >
+                      {savingEdit ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <p style={{ fontSize: '0.95rem' }}>{p.prompt_text}</p>
+                  {p.tags?.length > 0 && (
+                    <div className="mt-2 flex gap-2">
+                      {p.tags.map(t => (
+                        <span key={t} style={{ fontSize: '0.7rem', background: 'var(--bg-input)', padding: '2px 8px', borderRadius: 12 }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}

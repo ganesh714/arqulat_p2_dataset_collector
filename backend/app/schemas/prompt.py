@@ -15,6 +15,10 @@ class BulkPromptCreate(BaseModel):
     tags: List[str] = []
     force_create: bool = False
 
+class PromptUpdate(BaseModel):
+    prompt_text: Optional[str] = None
+    tags: Optional[List[str]] = None
+
 class PromptResponse(BaseModel):
     id: uuid.UUID
     code: Optional[str] = None

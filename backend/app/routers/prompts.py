@@ -8,7 +8,7 @@ import uuid
 from app.core.database import get_db
 from app.models.prompt import Prompt
 from app.models.taxonomy import Category
-from app.schemas.prompt import PromptCreate, PromptResponse, BulkPromptCreate
+from app.schemas.prompt import PromptCreate, PromptResponse, BulkPromptCreate, PromptUpdate
 from app.deps.auth import require_lead, get_current_user
 from app.models.user import User
 
@@ -175,4 +175,26 @@ async def get_prompt(
     prompt = result.scalar_one_or_none()
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt not found")
+    return prompt
+
+@router.put("/{prompt_id}", response_model=PromptResponse)
+async def update_prompt(
+    prompt_id: uuid.UUID,
+    prompt_in: PromptUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_lead: User = Depends(require_lead)
+):
+    """Edit an existing prompt."""
+    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
+    prompt = result.scalar_one_or_none()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
+    if prompt_in.prompt_text is not None:
+        prompt.prompt_text = prompt_in.prompt_text
+    if prompt_in.tags is not None:
+        prompt.tags = prompt_in.tags
+
+    await db.commit()
+    await db.refresh(prompt)
     return prompt
