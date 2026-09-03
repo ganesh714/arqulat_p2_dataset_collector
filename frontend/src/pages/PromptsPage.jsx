@@ -12,6 +12,7 @@ export default function PromptsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [promptText, setPromptText] = useState('');
   const [bulkText, setBulkText] = useState('');
+  const [forceCreateBulk, setForceCreateBulk] = useState(false);
   const [tags, setTags] = useState('');
   const [mode, setMode] = useState('single'); // 'single' or 'bulk'
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +72,7 @@ export default function PromptsPage() {
           category_id: categoryId,
           prompts: promptsArray,
           tags: tagsArray,
-          force_create: forceCreate
+          force_create: forceCreateBulk
         });
         
         if (res.data.duplicates?.length > 0 && res.data.created > 0) {
@@ -237,6 +238,15 @@ export default function PromptsPage() {
                 placeholder="A beautiful red chair...&#10;A vintage wooden table...&#10;A modern glass desk..."
               />
               <p className="text-muted mt-1" style={{ fontSize: '0.75rem' }}>Paste multiple prompts here. Each new line will be created as a separate prompt under the selected category.</p>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: '0.85rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={forceCreateBulk}
+                  onChange={e => setForceCreateBulk(e.target.checked)}
+                />
+                Force create (ignore duplicates check)
+              </label>
             </div>
           )}
 
