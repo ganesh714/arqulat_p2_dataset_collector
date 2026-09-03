@@ -134,8 +134,9 @@ export default function EntryEditorPage() {
 
   // Build token-bearing URLs for the proxy endpoints
   const token = localStorage.getItem('access_token');
-  const modelUrl = entry?.glb_url ? `http://localhost:8000/api/entries/${id}/model?token=${token}` : null;
-  const renderUrl = entry?.render_url ? `http://localhost:8000/api/entries/${id}/render?token=${token}` : null;
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const modelUrl = entry?.glb_url ? `${baseUrl}/api/entries/${id}/model?token=${token}` : null;
+  const renderUrl = entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}` : null;
 
   useEffect(() => {
     fetchEntry();
@@ -158,7 +159,7 @@ export default function EntryEditorPage() {
 
         // Fetch category name from taxonomy
         try {
-          const taxRes = await api.get('/api/taxonomy');
+          const taxRes = await api.get('/api/taxonomy/phases');
           for (const phase of taxRes.data) {
             for (const sub of (phase.subphases || [])) {
               for (const cat of (sub.categories || [])) {
