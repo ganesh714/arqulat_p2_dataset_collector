@@ -62,7 +62,7 @@ async def create_prompt(
     # 3. Generate atomic code
     cat.prompt_counter += 1
     code_prefix = _make_code_prefix(cat.name)
-    code = f"{code_prefix}{cat.prompt_counter:04d}"
+    code = f"{code_prefix}_{cat.prompt_counter:04d}"
 
     # 4. Insert the new prompt
     new_prompt = Prompt(
@@ -119,7 +119,7 @@ async def bulk_create_prompts(
                 continue
 
         cat.prompt_counter += 1
-        code = f"{code_prefix}{cat.prompt_counter:04d}"
+        code = f"{code_prefix}_{cat.prompt_counter:04d}"
 
         new_prompt = Prompt(
             code=code,
