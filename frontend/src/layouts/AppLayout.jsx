@@ -64,12 +64,12 @@ function getNavItems(role) {
   if (['reviewer', 'lead', 'admin'].includes(role)) {
     items.push({ to: '/review-queue', label: 'Review Queue' });
     items.push({ to: '/batches', label: 'My Batches' });
+    items.push({ to: '/workers', label: 'Worker Health' });
   }
 
   // Lead+
   if (['lead', 'admin'].includes(role)) {
     items.push({ to: '/prompts', label: 'Prompts' });
-    items.push({ to: '/workers', label: 'Worker Health' });
   }
 
   // Admin

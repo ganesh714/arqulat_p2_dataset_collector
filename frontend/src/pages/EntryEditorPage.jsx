@@ -128,6 +128,7 @@ export default function EntryEditorPage() {
   const [running, setRunning] = useState(false);
   const [latestJob, setLatestJob] = useState(null);
   const [viewMode, setViewMode] = useState('3d'); // '3d' or 'render'
+  const [workersOnline, setWorkersOnline] = useState(0);
   const pollRef = useRef(null);
   const modelViewerRef = useRef(null);
 
@@ -177,6 +178,15 @@ export default function EntryEditorPage() {
           setLatestJob(jobsRes.data[0]);
         }
       } catch { /* no jobs yet */ }
+      
+      // Fetch workers health
+      try {
+        const workersRes = await api.get('/api/workers/health');
+        setWorkersOnline(workersRes.data.filter(w => w.status === 'online').length);
+      } catch (e) {
+        console.error("Failed to fetch workers", e);
+      }
+      
     } catch (err) {
       setError('Failed to load entry');
     } finally {
@@ -417,12 +427,17 @@ export default function EntryEditorPage() {
           {/* Phase 2 Code editor */}
           <div className="ee-editor-header" style={{ marginTop: 16 }}>
             <span>Phase 2 Code</span>
-            <div className="ee-editor-actions">
+            <div className="flex gap-2 items-center">
               {isEditable && (
-                <button
-                  className="btn btn-sm ee-run-btn"
+                <div style={{ marginRight: '8px', fontSize: '0.85rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)' }}>
+                  {workersOnline > 0 ? `🟢 ${workersOnline} worker(s) online` : '⚪ No workers online (jobs will queue)'}
+                </div>
+              )}
+              {isEditable && (
+                <button 
+                  className="btn btn-outline btn-sm"
                   onClick={handleTestRun}
-                  disabled={running}
+                  disabled={running || withdrawing}
                 >
                   {running ? (
                     <><span className="spinner spinner-sm" /> Running...</>
