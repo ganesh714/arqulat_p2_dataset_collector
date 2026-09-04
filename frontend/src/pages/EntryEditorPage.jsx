@@ -454,16 +454,14 @@ export default function EntryEditorPage() {
               </>
             )}
           </div>
-          {isPromptOpen && (
-            <button
-              className="btn btn-sm btn-outline"
-              onClick={handleCopyInstructions}
-              title="Copy AI instructions to clipboard"
-              style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
-            >
-              {copied ? '✓ Copied!' : '📋 Copy Instructions'}
-            </button>
-          )}
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={handleCopyInstructions}
+            title="Copy AI instructions to clipboard"
+            style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
+          >
+            {copied ? '✓ Copied!' : '📋 Copy Instructions'}
+          </button>
         </div>
       </div>
 
@@ -658,17 +656,15 @@ export default function EntryEditorPage() {
                 <Terminal size={14} /> Terminal
                 {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
               </span>
-              {isTerminalOpen && (
-                <button 
-                  className="btn btn-sm btn-outline" 
-                  onClick={handleCopyTerminal} 
-                  title="Copy terminal logs"
-                  style={{ padding: '2px 8px', fontSize: '0.7rem', height: '24px', minHeight: '24px' }}
-                >
-                  <Copy size={12} style={{ marginRight: 4 }} /> 
-                  {terminalCopied ? 'Copied' : 'Copy'}
-                </button>
-              )}
+              <button 
+                className="btn btn-sm btn-outline" 
+                onClick={handleCopyTerminal} 
+                title="Copy terminal logs"
+                style={{ padding: '2px 8px', fontSize: '0.7rem', height: '24px', minHeight: '24px' }}
+              >
+                <Copy size={12} style={{ marginRight: 4 }} /> 
+                {terminalCopied ? 'Copied' : 'Copy'}
+              </button>
             </div>
             <div className="ee-bottom-actions">
               {isEditable && (
