@@ -249,16 +249,21 @@ export default function EntryEditorPage() {
     try {
       let res;
       if (latestJob?.id && latestJob.status === 'done' && latestJob.is_test_run) {
-        // Promote the test run (this syncs the DB script to the snapshot that actually generated the model)
-        res = await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
+        // Promote the test run to lock in the 3D model URLs
+        await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
         setLatestJob(null);
-        setThinkBlock(res.data.think_block || '');
-        setPhase2Code(res.data.phase2_code || '');
+        
+        // Follow up with a patch to ensure any text edits (like a pasted think block) 
+        // made AFTER the run started are saved, overriding the old snapshot.
+        res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
       } else {
         // Normal save
         res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
       }
       setEntry(res.data);
+      // Sync the editor text fields just in case
+      setThinkBlock(res.data.think_block || '');
+      setPhase2Code(res.data.phase2_code || '');
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -274,13 +279,14 @@ export default function EntryEditorPage() {
     setError('');
     try {
       if (latestJob?.id && latestJob.status === 'done' && latestJob.is_test_run) {
-        // Promote before submitting to ensure model is saved
+        // Promote the test run to lock in the 3D model URLs
         await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
         setLatestJob(null);
-      } else {
-        // Normal save before submitting
-        await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
       }
+      
+      // Always patch with the current UI text before submitting, so think block is preserved
+      await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      
       const res = await api.post(`/api/entries/${id}/submit`);
       setEntry(res.data);
     } catch (err) {
