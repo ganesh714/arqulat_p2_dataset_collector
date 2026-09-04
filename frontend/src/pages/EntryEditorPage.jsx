@@ -455,7 +455,7 @@ export default function EntryEditorPage() {
             )}
           </div>
           <button
-            className="btn btn-sm btn-outline"
+            className="btn btn-sm ee-copy-btn"
             onClick={handleCopyInstructions}
             title="Copy AI instructions to clipboard"
             style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
@@ -657,7 +657,7 @@ export default function EntryEditorPage() {
                 {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
               </span>
               <button 
-                className="btn btn-sm btn-outline" 
+                className="btn btn-sm ee-copy-btn" 
                 onClick={handleCopyTerminal} 
                 title="Copy terminal logs"
                 style={{ padding: '2px 8px', fontSize: '0.7rem', height: '24px', minHeight: '24px' }}
