@@ -130,7 +130,7 @@ export default function EntryEditorPage() {
   const [latestJob, setLatestJob] = useState(null);
   const [viewMode, setViewMode] = useState('3d'); // '3d' or 'render'
   const [workersOnline, setWorkersOnline] = useState(0);
-  const [isPromptOpen, setIsPromptOpen] = useState(true);
+  const [isPromptOpen, setIsPromptOpen] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalCopied, setTerminalCopied] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -428,8 +428,8 @@ export default function EntryEditorPage() {
         </div>
       </div>
 
-      <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '110px' : '44px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '110px' : '52px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div 
               className="ee-prompt-label" 
@@ -458,7 +458,7 @@ export default function EntryEditorPage() {
             className="btn btn-sm ee-copy-btn"
             onClick={handleCopyInstructions}
             title="Copy AI instructions to clipboard"
-            style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
+            style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0, padding: '4px 12px', fontSize: '0.75rem' }}
           >
             {copied ? '✓ Copied!' : '📋 Copy Instructions'}
           </button>
