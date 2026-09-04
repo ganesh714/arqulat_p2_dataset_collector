@@ -428,7 +428,7 @@ export default function EntryEditorPage() {
         </div>
       </div>
 
-      <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '150px' : '44px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
+      <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '110px' : '44px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div 
@@ -651,7 +651,7 @@ export default function EntryEditorPage() {
         </div>
 
         {/* ── Bottom Panel: Terminal Log & Actions ── */}
-        <div className="ee-terminal-area" style={{ height: isTerminalOpen ? '250px' : '44px', transition: 'height 0.2s' }}>
+        <div className="ee-terminal-area" style={{ height: isTerminalOpen ? '140px' : '44px', transition: 'height 0.2s' }}>
           <div className="ee-terminal-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsTerminalOpen(!isTerminalOpen)}>
