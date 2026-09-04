@@ -120,6 +120,7 @@ export default function EntryEditorPage() {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [cloning, setCloning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -308,6 +309,20 @@ export default function EntryEditorPage() {
     }
   }
 
+  async function handleClone() {
+    setCloning(true);
+    try {
+      // Create clone on backend
+      const res = await api.post(`/api/entries/${id}/clone`);
+      // Immediately navigate to the newly created clone's editor page
+      navigate(`/editor/${res.data.id}`);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to clone entry');
+    } finally {
+      setCloning(false);
+    }
+  }
+
   // ─── Test Run ─────────────────────────────────────────────
   async function handleTestRun() {
     if (!phase2Code.trim()) { setError('Cannot run an empty phase 2 script.'); return; }
@@ -428,6 +443,18 @@ export default function EntryEditorPage() {
         </button>
         <div className="flex items-center gap-2">
           <span className="entry-code-label">{entry.code || 'No code'}</span>
+          <span className={`status-badge status-${entry.status}`}>
+            {entry.status.replace('_', ' ')}
+          </span>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={handleClone}
+            disabled={cloning}
+            title="Duplicate this entry to create a v2 variation"
+            style={{ marginLeft: 8 }}
+          >
+            {cloning ? <span className="spinner spinner-sm" /> : '📑 Clone to v2'}
+          </button>
         </div>
       </div>
 

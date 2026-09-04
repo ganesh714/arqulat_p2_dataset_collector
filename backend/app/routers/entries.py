@@ -179,6 +179,63 @@ async def withdraw_entry(
     return entry
 
 
+@router.post("/{entry_id}/clone", response_model=EntryResponse)
+async def clone_entry(
+    entry_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_contributor: User = Depends(require_contributor)
+):
+    """
+    Duplicate an entry into a new 'v2' variation.
+    Preserves text fields (think_block, phase2_code) but resets status to draft
+    and clears 3D model URLs. Generates a new code (e.g. _v2).
+    """
+    entry_res = await db.execute(select(Entry).where(Entry.id == entry_id))
+    entry = entry_res.scalar_one_or_none()
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+        
+    if entry.contributor_id != current_contributor.id and current_contributor.role not in [RoleEnum.lead, RoleEnum.admin]:
+        raise HTTPException(status_code=403, detail="Not authorized to clone this entry")
+
+    # Determine the new code
+    base_code = entry.code or str(entry.id)
+    # Strip any existing _vX suffix to get the true base code
+    base_code = re.sub(r'_v\d+$', '', base_code)
+    
+    # Find existing vX clones
+    like_pattern = f"{base_code}\_v%"
+    clones_res = await db.execute(select(Entry).where(Entry.code.like(like_pattern)))
+    clones = clones_res.scalars().all()
+    
+    max_v = 1
+    for clone in clones:
+        m = re.search(r'_v(\d+)$', clone.code)
+        if m:
+            v_num = int(m.group(1))
+            if v_num > max_v:
+                max_v = v_num
+                
+    new_v = max_v + 1
+    new_code = f"{base_code}_v{new_v}"
+
+    new_entry = Entry(
+        code=new_code,
+        prompt_id=entry.prompt_id,
+        batch_id=entry.batch_id,
+        contributor_id=entry.contributor_id,
+        think_block=entry.think_block,
+        phase2_code=entry.phase2_code,
+        status=EntryStatus.draft,
+    )
+    
+    db.add(new_entry)
+    await db.commit()
+    await db.refresh(new_entry)
+    return new_entry
+
+
 # ─── Test Run ───────────────────────────────────────────────────────
 @router.post("/{entry_id}/test-run", response_model=JobResponse)
 async def test_run_entry(
