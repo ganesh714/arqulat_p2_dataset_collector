@@ -1,30 +1,30 @@
 :root {
-  /* Neutral palette */
-  --bg-primary: #0f1117;
-  --bg-secondary: #1a1d27;
-  --bg-card: #22253a;
-  --bg-input: #2a2d3e;
-  --border: #333650;
-  --text-primary: #e4e4e7;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  /* Premium Dark IDE / Chat Palette (Zinc tones) */
+  --bg-primary: #09090b;      /* Zinc 950 */
+  --bg-secondary: #18181b;    /* Zinc 900 */
+  --bg-card: #09090b;         /* Zinc 950 */
+  --bg-input: #27272a;        /* Zinc 800 */
+  --border: #27272a;          /* Zinc 800 */
+  --text-primary: #fafafa;    /* Zinc 50 */
+  --text-secondary: #a1a1aa;  /* Zinc 400 */
+  --text-muted: #71717a;      /* Zinc 500 */
 
-  /* Accent */
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-bg: rgba(99, 102, 241, 0.12);
+  /* Sleek Accent (Electric Blue / Indigo) */
+  --accent: #3b82f6;          /* Blue 500 */
+  --accent-hover: #60a5fa;    /* Blue 400 */
+  --accent-bg: rgba(59, 130, 246, 0.15);
 
   /* Status */
-  --status-draft: #6b7280;
-  --status-submitted: #f59e0b;
-  --status-approved: #10b981;
+  --status-draft: #a1a1aa;
+  --status-submitted: #eab308;
+  --status-approved: #22c55e;
   --status-rejected: #ef4444;
   --status-needs-fix: #f97316;
 
-  /* Sizing */
-  --radius: 6px;
-  --radius-lg: 10px;
-  --sidebar-width: 240px;
+  /* Sizing & Borders */
+  --radius: 8px;
+  --radius-lg: 12px;
+  --sidebar-width: 260px;
 }
 
 * {
@@ -198,11 +198,23 @@ textarea.form-input {
   top: 0;
   left: 0;
   bottom: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+}
+
+.sidebar.closed {
+  width: 60px;
 }
 
 .sidebar-header {
   padding: 0 20px 20px;
   border-bottom: 1px solid var(--border);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .sidebar-header h2 {
@@ -235,17 +247,35 @@ textarea.form-input {
 }
 
 .sidebar-link {
-  display: block;
+  display: flex;
+  align-items: center;
   padding: 10px 20px;
   color: var(--text-secondary);
   font-size: 0.875rem;
   transition: all 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sidebar-link.icon-only {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.nav-icon {
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.sidebar-link.icon-only .nav-icon {
+  margin-right: 0;
 }
 
 .sidebar-link:hover,
 .sidebar-link.active {
-  background: var(--accent-bg);
-  color: var(--accent);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-right: 3px solid var(--accent);
 }
 
 .sidebar-footer {
@@ -256,8 +286,61 @@ textarea.form-input {
 .main-content {
   flex: 1;
   margin-left: var(--sidebar-width);
-  padding: 32px 40px;
+  padding: 0; /* Let inner components handle padding */
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
+
+.app-layout.sidebar-closed .main-content {
+  margin-left: 60px;
+}
+
+/* Sidebar Edge Toggle */
+.sidebar-border-toggle {
+  position: absolute;
+  top: 18px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 200;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.sidebar-border-toggle:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+/* Remove floating toggle as it's now on the border */
 
 .page-header {
   margin-bottom: 28px;
@@ -525,7 +608,7 @@ textarea.form-input {
   color: var(--text-secondary);
 }
 
-/* --- Entry Editor Split-Pane Layout --- */
+/* --- Entry Editor IDE Layout --- */
 .entry-editor-layout {
   display: flex;
   flex-direction: column;
@@ -552,42 +635,36 @@ textarea.form-input {
   border-radius: 4px;
 }
 
-.entry-editor-panels {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* -- Left Panel: Script & Log -- */
-.entry-editor-left {
-  flex: 1;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  overflow-y: auto;
-  gap: 16px;
-}
-
-.ee-prompt-card {
-  background: var(--bg-input);
-  border-left: 4px solid var(--accent);
-  padding: 16px;
-  border-radius: 4px;
+/* ── Prompt Header ── */
+.ee-prompt-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  flex-shrink: 0;
 }
 
 .ee-prompt-label {
   font-size: 0.75rem;
   text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ee-prompt-label::before {
+  content: '👤';
+  font-size: 1rem;
 }
 
 .ee-prompt-text {
-  font-size: 1rem;
-  font-weight: 500;
-  line-height: 1.4;
-  margin-bottom: 8px;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+  margin-bottom: 12px;
 }
 
 .ee-prompt-tags {
@@ -604,93 +681,87 @@ textarea.form-input {
   border-radius: 12px;
 }
 
-.ee-reviewer-notes {
-  background: rgba(249, 115, 22, 0.1);
-  border: 1px solid var(--status-needs-fix);
-  color: var(--text-primary);
-  padding: 12px;
-  border-radius: 4px;
-  font-size: 0.85rem;
+/* ── Workspace ── */
+.entry-editor-workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.ee-main-panels {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Editors (Side-by-Side) ── */
+.ee-editors-container {
+  display: flex;
+  flex: 2;
+  border-right: 1px solid var(--border);
+}
+
+.ee-editor-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  border-right: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+.ee-editor-pane:last-child {
+  border-right: none;
 }
 
 .ee-editor-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  margin-bottom: -10px; /* pull closer to textarea */
+  background: var(--bg-card);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Inter', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .ee-run-btn {
-  background: #333;
+  background: var(--accent);
   color: white;
-  border: 1px solid #555;
-  transition: background 0.2s;
+  border: 1px solid var(--accent);
+  transition: all 0.2s ease-in-out;
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
 }
 .ee-run-btn:hover:not(:disabled) {
-  background: #444;
+  background: var(--accent-hover);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+  transform: translateY(-1px);
 }
 
 .ee-script-textarea {
   flex: 1;
-  min-height: 300px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
+  background: #000000;
+  color: #d4d4d8;
+  border: none;
+  padding: 16px;
   font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
   font-size: 0.85rem;
-  line-height: 1.5;
-  resize: vertical;
+  line-height: 1.6;
+  resize: none;
 }
 .ee-script-textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.ee-log-panel {
-  background: #000;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-}
-
-.ee-log-header {
-  padding: 6px 12px;
-  background: #111;
-  border-bottom: 1px solid #333;
-  font-size: 0.75rem;
-  color: #888;
-  display: flex;
-  justify-content: space-between;
-}
-.ee-log-status {
-  font-weight: 600;
-}
-
-.ee-log-body {
-  padding: 12px;
-  font-family: monospace;
-  font-size: 0.8rem;
-  color: #ccc;
-  max-height: 200px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-}
-
-.ee-bottom-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
-/* -- Right Panel: Viewer -- */
-.entry-editor-right {
+/* ── Right Panel: Viewer ── */
+.ee-viewer-pane {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -742,12 +813,15 @@ textarea.form-input {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
 }
 .ee-viewer-empty-icon {
-  font-size: 3rem;
-  opacity: 0.5;
+  font-size: 2.5rem;
+  opacity: 0.3;
   margin-bottom: 8px;
+  filter: drop-shadow(0 0 10px rgba(255,255,255,0.1));
 }
 
 .ee-render-img {
@@ -804,3 +878,51 @@ textarea.form-input {
   color: white;
 }
 
+/* ── Terminal Area ── */
+.ee-terminal-area {
+  height: 250px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: #000000;
+  flex-shrink: 0;
+}
+
+.ee-terminal-header {
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ee-bottom-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ee-terminal-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.8rem;
+  color: #a1a1aa;
+}
+
+.ee-log-output {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.ee-log-output::before {
+  content: '>';
+  color: var(--accent);
+  margin-right: 8px;
+}
