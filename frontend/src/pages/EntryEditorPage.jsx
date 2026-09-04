@@ -186,11 +186,15 @@ export default function EntryEditorPage() {
         } catch { /* taxonomy fetch failed, category stays empty */ }
       } catch { setPrompt(null); }
 
-      // Fetch latest jobs
+      // Fetch latest jobs to resume polling if one is still running
       try {
         const jobsRes = await api.get(`/api/entries/${id}/jobs`);
         if (jobsRes.data.length > 0) {
-          setLatestJob(jobsRes.data[0]);
+          const recentJob = jobsRes.data[0];
+          if (recentJob.status === 'pending' || recentJob.status === 'running') {
+            setLatestJob(recentJob);
+            startPolling();
+          }
         }
       } catch { /* no jobs yet */ }
       
