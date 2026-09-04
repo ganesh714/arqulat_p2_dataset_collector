@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronUp, ChevronDown, Terminal, MessageSquare } from 'lucide-react';
+import { ChevronUp, ChevronDown, Terminal, MessageSquare, Copy } from 'lucide-react';
 import api from '../api';
 
 const POLL_INTERVAL = 3000;
@@ -132,6 +132,7 @@ export default function EntryEditorPage() {
   const [workersOnline, setWorkersOnline] = useState(0);
   const [isPromptOpen, setIsPromptOpen] = useState(true);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+  const [terminalCopied, setTerminalCopied] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const pollRef = useRef(null);
   const modelViewerRef = useRef(null);
@@ -222,6 +223,22 @@ export default function EntryEditorPage() {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleCopyTerminal() {
+    let text = '';
+    if (latestJob) {
+      if (latestJob.status === 'pending') text = 'Waiting for worker to claim job...';
+      else if (latestJob.status === 'running') text = 'Blender is executing the script...';
+      else if (latestJob.status === 'done') text = latestJob.error_log || '✓ Script executed successfully. No errors.';
+      else if (latestJob.status === 'failed') text = latestJob.error_log || 'Job failed — no error log available.';
+    } else {
+      text = "No execution logs yet. Click 'Run' to test your code.";
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      setTerminalCopied(true);
+      setTimeout(() => setTerminalCopied(false), 2000);
     });
   }
 
@@ -636,10 +653,23 @@ export default function EntryEditorPage() {
         {/* ── Bottom Panel: Terminal Log & Actions ── */}
         <div className="ee-terminal-area" style={{ height: isTerminalOpen ? '250px' : '44px', transition: 'height 0.2s' }}>
           <div className="ee-terminal-header">
-            <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsTerminalOpen(!isTerminalOpen)}>
-              <Terminal size={14} /> Terminal
-              {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsTerminalOpen(!isTerminalOpen)}>
+                <Terminal size={14} /> Terminal
+                {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </span>
+              {isTerminalOpen && (
+                <button 
+                  className="btn btn-sm btn-outline" 
+                  onClick={handleCopyTerminal} 
+                  title="Copy terminal logs"
+                  style={{ padding: '2px 8px', fontSize: '0.7rem', height: '24px', minHeight: '24px' }}
+                >
+                  <Copy size={12} style={{ marginRight: 4 }} /> 
+                  {terminalCopied ? 'Copied' : 'Copy'}
+                </button>
+              )}
+            </div>
             <div className="ee-bottom-actions">
               {isEditable && (
                 <>

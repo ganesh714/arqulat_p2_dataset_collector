@@ -27,6 +27,25 @@
   --sidebar-width: 260px;
 }
 
+/* Modern Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -618,12 +637,15 @@ textarea.form-input {
 
 .entry-editor-topbar {
   padding: 10px 20px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  background: rgba(24, 24, 27, 0.8); /* Glassmorphism base */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  z-index: 10;
 }
 
 .entry-code-label {
@@ -637,10 +659,14 @@ textarea.form-input {
 
 /* ── Prompt Header ── */
 .ee-prompt-header {
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  background: rgba(24, 24, 27, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   padding: 12px 20px;
   flex-shrink: 0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 5;
 }
 
 .ee-prompt-label {
@@ -687,6 +713,7 @@ textarea.form-input {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  background: var(--bg-primary);
 }
 
 .ee-main-panels {
@@ -890,7 +917,7 @@ textarea.form-input {
 
 .ee-terminal-header {
   padding: 8px 16px;
-  background: var(--bg-card);
+  background: rgba(24, 24, 27, 0.95);
   border-bottom: 1px solid var(--border);
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -899,6 +926,7 @@ textarea.form-input {
   align-items: center;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
 }
 
 .ee-bottom-actions {
