@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ChevronUp, ChevronDown, Terminal, MessageSquare } from 'lucide-react';
 import api from '../api';
 
 const POLL_INTERVAL = 3000;
@@ -129,6 +130,9 @@ export default function EntryEditorPage() {
   const [latestJob, setLatestJob] = useState(null);
   const [viewMode, setViewMode] = useState('3d'); // '3d' or 'render'
   const [workersOnline, setWorkersOnline] = useState(0);
+
+  const [isPromptOpen, setIsPromptOpen] = useState(true);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const pollRef = useRef(null);
   const modelViewerRef = useRef(null);
 
@@ -373,239 +377,257 @@ export default function EntryEditorPage() {
         </div>
       </div>
 
-      {error && <div className="login-error" style={{ margin: '0 0 12px' }}>{error}</div>}
-
-      <div className="entry-editor-panels">
-        {/* ── Left Panel: Script Editor ─────────────────── */}
-        <div className="entry-editor-left">
-          {/* Prompt */}
-          <div className="ee-prompt-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <div className="ee-prompt-label">Prompt {prompt?.code ? `(${prompt.code})` : ''}</div>
-                <div className="ee-prompt-text">{prompt?.prompt_text || 'Loading prompt...'}</div>
-              </div>
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={handleCopyInstructions}
-                title="Copy AI instructions to clipboard"
-                style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
-              >
-                {copied ? '✓ Copied!' : '📋 Copy Instructions'}
-              </button>
+      <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '150px' : '44px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div 
+              className="ee-prompt-label" 
+              style={{ cursor: 'pointer', marginBottom: isPromptOpen ? '8px' : '0' }}
+              onClick={() => setIsPromptOpen(!isPromptOpen)}
+            >
+              <MessageSquare size={14} style={{ marginRight: 4 }} /> 
+              Prompt {prompt?.code ? `(${prompt.code})` : ''}
+              {isPromptOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </div>
-            {prompt?.tags?.length > 0 && (
-              <div className="ee-prompt-tags">
-                {prompt.tags.map((tag, i) => (
-                  <span key={i} className="ee-tag">{tag}</span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Reviewer notes */}
-          {entry.reviewer_notes && entry.status === 'needs_fix' && (
-            <div className="ee-reviewer-notes">
-              <strong>Reviewer Notes:</strong> {entry.reviewer_notes}
-            </div>
-          )}
-
-          {/* Think Block editor */}
-          <div className="ee-editor-header">
-            <span>Think Block</span>
-          </div>
-          <textarea
-            className="ee-script-textarea"
-            style={{ minHeight: '150px' }}
-            value={thinkBlock}
-            onChange={(e) => setThinkBlock(e.target.value)}
-            disabled={!isEditable}
-            placeholder={`To create "..." procedurally in Blender, I need...`}
-            spellCheck={false}
-          />
-          
-          {/* Phase 2 Code editor */}
-          <div className="ee-editor-header" style={{ marginTop: 16 }}>
-            <span>Phase 2 Code</span>
-            <div className="flex gap-2 items-center">
-              {isEditable && (
-                <div style={{ marginRight: '8px', fontSize: '0.85rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)' }}>
-                  {workersOnline > 0 ? `🟢 ${workersOnline} worker(s) online` : '⚪ No workers online (jobs will queue)'}
-                </div>
-              )}
-              {isEditable && (
-                <button 
-                  className="btn btn-outline btn-sm"
-                  onClick={handleTestRun}
-                  disabled={running || withdrawing}
-                >
-                  {running ? (
-                    <><span className="spinner spinner-sm" /> Running...</>
-                  ) : (
-                    <>▶ Run (Test)</>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-          <textarea
-            className="ee-script-textarea"
-            style={{ minHeight: '300px' }}
-            value={phase2Code}
-            onChange={(e) => setPhase2Code(e.target.value)}
-            disabled={!isEditable}
-            placeholder={`# Your Phase 2 Blender script here...\n# Ends with an assignment like: final_object_name = "my_chair"`}
-            spellCheck={false}
-          />
-
-          {/* Fixed Sections Reference */}
-          <details className="ee-reference-panel" style={{ marginTop: 16 }}>
-            <summary className="ee-reference-summary">Fixed Sections Reference (Read-only)</summary>
-            <div className="ee-reference-body">
-              <div className="ee-reference-section-label">Imports (fixed)</div>
-              <pre className="ee-reference-code">{FIXED_IMPORTS_REF}</pre>
-
-              <div className="ee-reference-section-label" style={{ marginTop: 12 }}>Phase 1 — Scene Setup (fixed)</div>
-              <pre className="ee-reference-code">{FIXED_PHASE1_REF}</pre>
-
-              <div className="ee-reference-section-label" style={{ marginTop: 12 }}>
-                Phase 3 — Export &amp; Render (fixed, <code style={{ color: 'var(--accent)' }}>{`{{OBJECT}}`}</code> → <code style={{ color: 'var(--status-approved)' }}>{liveObjectName}</code>)
-              </div>
-              <pre className="ee-reference-code">{FIXED_PHASE3_REF.replaceAll('{{OBJECT}}', liveObjectName)}</pre>
-            </div>
-          </details>
-
-          {/* Execution log */}
-          {latestJob && (
-            <div className="ee-log-panel">
-              <div className="ee-log-header">
-                <span>Execution Log</span>
-                <span className="ee-log-status" style={{ color: jobStatusColor[latestJob.status] || 'inherit' }}>
-                  {latestJob.is_test_run ? '🧪 Test' : '📦 Submit'} • {latestJob.status.toUpperCase()}
-                </span>
-              </div>
-              <div className="ee-log-body">
-                {latestJob.status === 'pending' && 'Waiting for worker to claim job...'}
-                {latestJob.status === 'running' && 'Blender is executing the script...'}
-                {latestJob.status === 'done' && (latestJob.error_log || '✓ Script executed successfully. No errors.')}
-                {latestJob.status === 'failed' && (latestJob.error_log || 'Job failed — no error log available.')}
-              </div>
-            </div>
-          )}
-
-          {/* Bottom actions */}
-          <div className="ee-bottom-actions">
-            {isEditable && (
+            
+            {isPromptOpen && (
               <>
-                <button className="btn btn-outline" onClick={handleSave} disabled={saving}>
-                  {saving ? <span className="spinner spinner-sm" /> : saved ? '✓ Saved!' : 'Save draft'}
-                </button>
-                <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? <span className="spinner spinner-sm" /> : 'Submit for review'}
-                </button>
+                <div className="ee-prompt-text">{prompt?.prompt_text || 'Loading prompt...'}</div>
+                {prompt?.tags?.length > 0 && (
+                  <div className="ee-prompt-tags">
+                    {prompt.tags.map((tag, i) => (
+                      <span key={i} className="ee-tag">{tag}</span>
+                    ))}
+                  </div>
+                )}
               </>
             )}
-            {isSubmitted && (
-              <button className="btn btn-outline" onClick={handleWithdraw} disabled={withdrawing}>
-                {withdrawing ? <span className="spinner spinner-sm" /> : 'Withdraw'}
-              </button>
+          </div>
+          {isPromptOpen && (
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={handleCopyInstructions}
+              title="Copy AI instructions to clipboard"
+              style={{ whiteSpace: 'nowrap', marginLeft: 12, flexShrink: 0 }}
+            >
+              {copied ? '✓ Copied!' : '📋 Copy Instructions'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="entry-editor-workspace">
+        {/* Reviewer notes */}
+        {entry.reviewer_notes && entry.status === 'needs_fix' && (
+          <div className="ee-reviewer-notes" style={{ margin: '12px 20px' }}>
+            <strong>Reviewer Notes:</strong> {entry.reviewer_notes}
+          </div>
+        )}
+
+        <div className="ee-main-panels">
+          {/* ── Editor Panes ── */}
+          <div className="ee-editors-container">
+            {/* Think Block */}
+            <div className="ee-editor-pane">
+              <div className="ee-editor-header">
+                <span>💭 Think Block</span>
+              </div>
+              <textarea
+                className="ee-script-textarea"
+                value={thinkBlock}
+                onChange={(e) => setThinkBlock(e.target.value)}
+                disabled={!isEditable}
+                placeholder={`To create "..." procedurally in Blender, I need...`}
+                spellCheck={false}
+              />
+              {/* Fixed Sections Reference */}
+              <details className="ee-reference-panel" style={{ padding: '0 12px 12px', background: 'var(--bg-primary)' }}>
+                <summary className="ee-reference-summary">Fixed Sections Reference (Read-only)</summary>
+                <div className="ee-reference-body">
+                  <div className="ee-reference-section-label">Imports (fixed)</div>
+                  <pre className="ee-reference-code">{FIXED_IMPORTS_REF}</pre>
+
+                  <div className="ee-reference-section-label" style={{ marginTop: 12 }}>Phase 1 — Scene Setup (fixed)</div>
+                  <pre className="ee-reference-code">{FIXED_PHASE1_REF}</pre>
+
+                  <div className="ee-reference-section-label" style={{ marginTop: 12 }}>
+                    Phase 3 — Export &amp; Render (fixed, <code style={{ color: 'var(--accent)' }}>{`{{OBJECT}}`}</code> → <code style={{ color: 'var(--status-approved)' }}>{liveObjectName}</code>)
+                  </div>
+                  <pre className="ee-reference-code">{FIXED_PHASE3_REF.replaceAll('{{OBJECT}}', liveObjectName)}</pre>
+                </div>
+              </details>
+            </div>
+
+            {/* Phase 2 Code */}
+            <div className="ee-editor-pane">
+              <div className="ee-editor-header">
+                <span>📝 Phase 2 Code</span>
+                <div className="flex gap-2 items-center">
+                  {isEditable && (
+                    <button 
+                      className="ee-run-btn"
+                      onClick={handleTestRun}
+                      disabled={running || withdrawing}
+                    >
+                      {running ? (
+                        <><span className="spinner spinner-sm" style={{ width: 14, height: 14, borderWidth: 2 }} /> Running...</>
+                      ) : (
+                        <>▶ Run (Test)</>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <textarea
+                className="ee-script-textarea"
+                value={phase2Code}
+                onChange={(e) => setPhase2Code(e.target.value)}
+                disabled={!isEditable}
+                placeholder={`# Your Phase 2 Blender script here...\n# Ends with an assignment like: final_object_name = "my_chair"`}
+                spellCheck={false}
+              />
+            </div>
+          </div>
+
+          {/* ── Right Panel: 3D Viewer ── */}
+          <div className="ee-viewer-pane">
+
+            {/* View toggle */}
+            <div className="ee-view-toggle">
+              <label className={viewMode === '3d' ? 'active' : ''}>
+                <input
+                  type="radio"
+                  name="viewMode"
+                  value="3d"
+                  checked={viewMode === '3d'}
+                  onChange={() => setViewMode('3d')}
+                />
+                3D View
+              </label>
+              <label className={viewMode === 'render' ? 'active' : ''}>
+                <input
+                  type="radio"
+                  name="viewMode"
+                  value="render"
+                  checked={viewMode === 'render'}
+                  onChange={() => setViewMode('render')}
+                />
+                Render
+              </label>
+            </div>
+
+            <div className="ee-viewer-container">
+              {viewMode === '3d' ? (
+                modelUrl ? (
+                  <model-viewer
+                    ref={modelViewerRef}
+                    src={modelUrl}
+                    alt="Generated 3D Model"
+                    auto-rotate
+                    camera-controls
+                    shadow-intensity="1"
+                    interaction-prompt="none"
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                ) : (
+                  <div className="ee-viewer-empty">
+                    <div className="ee-viewer-empty-icon">📦</div>
+                    <p>No 3D model yet</p>
+                    <p className="text-muted">Run the script to generate a model</p>
+                  </div>
+                )
+              ) : (
+                renderUrl ? (
+                  <img
+                    src={renderUrl}
+                    alt="Render output"
+                    className="ee-render-img"
+                  />
+                ) : (
+                  <div className="ee-viewer-empty">
+                    <div className="ee-viewer-empty-icon">🖼️</div>
+                    <p>No render yet</p>
+                    <p className="text-muted">Run the script to generate a render</p>
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Viewer toolbar */}
+            {viewMode === '3d' && modelUrl && (
+              <div className="ee-viewer-toolbar">
+                <button onClick={resetCamera} title="Reset View">🏠 Reset</button>
+                <button onClick={toggleAutoRotate} title="Toggle Auto Rotate">🔁 Spin</button>
+              </div>
             )}
-            {['approved', 'rejected'].includes(entry.status) && (
-              <p className="text-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
-                This entry has been {entry.status} and is read-only.
-              </p>
+
+            {/* File links */}
+            {(entry.render_url || entry.glb_url) && (
+              <div className="ee-file-links">
+                {entry.render_url && (
+                  <a href={entry.render_url} target="_blank" rel="noreferrer" className="ee-file-link">
+                    📷 Open render in Drive
+                  </a>
+                )}
+                {entry.glb_url && (
+                  <a href={entry.glb_url} target="_blank" rel="noreferrer" className="ee-file-link">
+                    📦 Open model in Drive
+                  </a>
+                )}
+              </div>
             )}
+
           </div>
         </div>
 
-        {/* ── Right Panel: 3D Viewer ───────────────────── */}
-        <div className="entry-editor-right">
-          {/* View toggle */}
-          <div className="ee-view-toggle">
-            <label className={viewMode === '3d' ? 'active' : ''}>
-              <input
-                type="radio"
-                name="viewMode"
-                value="3d"
-                checked={viewMode === '3d'}
-                onChange={() => setViewMode('3d')}
-              />
-              3D View
-            </label>
-            <label className={viewMode === 'render' ? 'active' : ''}>
-              <input
-                type="radio"
-                name="viewMode"
-                value="render"
-                checked={viewMode === 'render'}
-                onChange={() => setViewMode('render')}
-              />
-              Render
-            </label>
-          </div>
-
-          <div className="ee-viewer-container">
-            {viewMode === '3d' ? (
-              modelUrl ? (
-                <model-viewer
-                  ref={modelViewerRef}
-                  src={modelUrl}
-                  alt="Generated 3D Model"
-                  auto-rotate
-                  camera-controls
-                  shadow-intensity="1"
-                  interaction-prompt="none"
-                  style={{ width: '100%', height: '100%' }}
-                />
-              ) : (
-                <div className="ee-viewer-empty">
-                  <div className="ee-viewer-empty-icon">📦</div>
-                  <p>No 3D model yet</p>
-                  <p className="text-muted">Run the script to generate a model</p>
-                </div>
-              )
-            ) : (
-              renderUrl ? (
-                <img
-                  src={renderUrl}
-                  alt="Render output"
-                  className="ee-render-img"
-                />
-              ) : (
-                <div className="ee-viewer-empty">
-                  <div className="ee-viewer-empty-icon">🖼️</div>
-                  <p>No render yet</p>
-                  <p className="text-muted">Run the script to generate a render</p>
-                </div>
-              )
-            )}
-          </div>
-
-          {/* Viewer toolbar */}
-          {viewMode === '3d' && modelUrl && (
-            <div className="ee-viewer-toolbar">
-              <button onClick={resetCamera} title="Reset View">🏠 Reset</button>
-              <button onClick={toggleAutoRotate} title="Toggle Auto Rotate">🔁 Spin</button>
-            </div>
-          )}
-
-          {/* File links */}
-          {(entry.render_url || entry.glb_url) && (
-            <div className="ee-file-links">
-              {entry.render_url && (
-                <a href={entry.render_url} target="_blank" rel="noreferrer" className="ee-file-link">
-                  📷 Open render in Drive
-                </a>
+        {/* ── Bottom Panel: Terminal Log & Actions ── */}
+        <div className="ee-terminal-area" style={{ height: isTerminalOpen ? '250px' : '44px', transition: 'height 0.2s' }}>
+          <div className="ee-terminal-header">
+            <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsTerminalOpen(!isTerminalOpen)}>
+              <Terminal size={14} /> Terminal
+              {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </span>
+            <div className="ee-bottom-actions">
+              {isEditable && (
+                <>
+                  <span style={{ fontSize: '0.75rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)' }}>
+                    {workersOnline > 0 ? `🟢 ${workersOnline} worker(s) online` : '⚪ No workers online'}
+                  </span>
+                  <button className="btn btn-outline btn-sm" onClick={handleSave} disabled={saving}>
+                    {saving ? <span className="spinner spinner-sm" /> : saved ? '✓ Saved!' : 'Save draft'}
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? <span className="spinner spinner-sm" /> : 'Submit for review'}
+                  </button>
+                </>
               )}
-              {entry.glb_url && (
-                <a href={entry.glb_url} target="_blank" rel="noreferrer" className="ee-file-link">
-                  📦 Open model in Drive
-                </a>
+              {isSubmitted && (
+                <button className="btn btn-outline btn-sm" onClick={handleWithdraw} disabled={withdrawing}>
+                  {withdrawing ? <span className="spinner spinner-sm" /> : 'Withdraw'}
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {isTerminalOpen && (
+            <div className="ee-terminal-content">
+              {latestJob ? (
+                <div className="ee-log-output">
+                  {latestJob.status === 'pending' && 'Waiting for worker to claim job...'}
+                  {latestJob.status === 'running' && 'Blender is executing the script...'}
+                  {latestJob.status === 'done' && (latestJob.error_log || '✓ Script executed successfully. No errors.')}
+                  {latestJob.status === 'failed' && (latestJob.error_log || 'Job failed — no error log available.')}
+                </div>
+              ) : (
+                <div className="ee-log-output" style={{ color: 'var(--text-muted)' }}>
+                  No execution logs yet. Click 'Run' to test your code.
+                </div>
               )}
             </div>
           )}
         </div>
       </div>
+
     </div>
   );
 }
