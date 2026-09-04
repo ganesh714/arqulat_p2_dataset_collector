@@ -221,8 +221,19 @@ export default function EntryEditorPage() {
   async function handleSave() {
     setSaving(true);
     setSaved(false);
+    setError('');
     try {
-      const res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      let res;
+      if (latestJob?.id && latestJob.status === 'done' && latestJob.is_test_run) {
+        // Promote the test run (this syncs the DB script to the snapshot that actually generated the model)
+        res = await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
+        setLatestJob(null);
+        setThinkBlock(res.data.think_block || '');
+        setPhase2Code(res.data.phase2_code || '');
+      } else {
+        // Normal save
+        res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      }
       setEntry(res.data);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -236,8 +247,16 @@ export default function EntryEditorPage() {
   async function handleSubmit() {
     if (!phase2Code.trim()) { setError('Cannot submit an empty phase 2 script.'); return; }
     setSubmitting(true);
+    setError('');
     try {
-      await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      if (latestJob?.id && latestJob.status === 'done' && latestJob.is_test_run) {
+        // Promote before submitting to ensure model is saved
+        await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
+        setLatestJob(null);
+      } else {
+        // Normal save before submitting
+        await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      }
       const res = await api.post(`/api/entries/${id}/submit`);
       setEntry(res.data);
     } catch (err) {
@@ -256,27 +275,6 @@ export default function EntryEditorPage() {
       setError(err.response?.data?.detail || 'Withdraw failed');
     } finally {
       setWithdrawing(false);
-    }
-  }
-
-  async function handlePromoteTest() {
-    if (!latestJob?.id) return;
-    setPromoting(true);
-    setError('');
-    try {
-      const res = await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
-      setEntry(res.data);
-      // Sync the editor text fields with the promoted values
-      setThinkBlock(res.data.think_block || '');
-      setPhase2Code(res.data.phase2_code || '');
-      // Clear the test run state since it's now saved
-      setLatestJob(null);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save test result');
-    } finally {
-      setPromoting(false);
     }
   }
 
@@ -591,16 +589,8 @@ export default function EntryEditorPage() {
               gap: 8,
             }}>
               <span style={{ fontSize: '0.85rem' }}>
-                🧪 <strong>Test run preview</strong> — this is not saved yet
+                🧪 <strong>Test run preview</strong> — click "Save draft" below to keep this result.
               </span>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handlePromoteTest}
-                disabled={promoting}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {promoting ? <><span className="spinner spinner-sm" /> Saving...</> : '💾 Save This Result'}
-              </button>
             </div>
           )}
           <div className="ee-viewer-container">
