@@ -185,8 +185,9 @@ async def test_run_entry(
     current_contributor: User = Depends(require_contributor),
 ):
     """
-    Save script and create a test-run job.
-    Does NOT change entry status — contributors can iterate freely.
+    Create an ephemeral test-run job.
+    Does NOT save the script to the entry — only snapshots it on the Job row.
+    The worker will use the snapshot. Results go to temp URLs on the Job.
     """
     entry_res = await db.execute(select(Entry).where(Entry.id == entry_id))
     entry = entry_res.scalar_one_or_none()
@@ -205,18 +206,73 @@ async def test_run_entry(
     if errors:
         raise HTTPException(status_code=400, detail=" ".join(errors))
 
-    # Save the script components
-    entry.think_block = entry_update.think_block
-    entry.phase2_code = entry_update.phase2_code
-    
-    # Create a test-run job
-    new_job = Job(entry_id=entry.id, status=JobStatus.pending, is_test_run=True)
+    # Do NOT save to entry — snapshot onto the Job instead
+    new_job = Job(
+        entry_id=entry.id,
+        status=JobStatus.pending,
+        is_test_run=True,
+        script_snapshot=entry_update.phase2_code,
+        think_block_snapshot=entry_update.think_block,
+    )
     db.add(new_job)
 
     await db.commit()
     await db.refresh(new_job)
     return new_job
 
+
+# ─── Promote Test Result ────────────────────────────────────────────
+from pydantic import BaseModel as _BaseModel
+
+class PromoteTestRequest(_BaseModel):
+    job_id: uuid.UUID
+
+@router.post("/{entry_id}/promote-test", response_model=EntryResponse)
+async def promote_test_result(
+    entry_id: uuid.UUID,
+    body: PromoteTestRequest,
+    db: AsyncSession = Depends(get_db),
+    current_contributor: User = Depends(require_contributor),
+):
+    """
+    Promote a completed test-run result to the permanent entry.
+    Copies script snapshot → entry, and temp file URLs → entry.
+    """
+    entry_res = await db.execute(select(Entry).where(Entry.id == entry_id))
+    entry = entry_res.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    if entry.contributor_id != current_contributor.id and current_contributor.role not in [RoleEnum.lead, RoleEnum.admin]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Fetch the job
+    job_res = await db.execute(select(Job).where(Job.id == body.job_id))
+    job = job_res.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.entry_id != entry.id:
+        raise HTTPException(status_code=400, detail="Job does not belong to this entry")
+    if not job.is_test_run:
+        raise HTTPException(status_code=400, detail="Job is not a test run")
+    if job.status != JobStatus.done.value and job.status != JobStatus.done:
+        raise HTTPException(status_code=400, detail="Job has not completed successfully")
+
+    # Promote script snapshot to entry
+    if job.script_snapshot:
+        entry.phase2_code = job.script_snapshot
+    if job.think_block_snapshot:
+        entry.think_block = job.think_block_snapshot
+
+    # Promote temp file URLs to entry
+    if job.temp_render_url:
+        entry.render_url = job.temp_render_url
+    if job.temp_glb_url:
+        entry.glb_url = job.temp_glb_url
+
+    await db.commit()
+    await db.refresh(entry)
+    return entry
 
 # ─── List Jobs for Entry ────────────────────────────────────────────
 @router.get("/{entry_id}/jobs", response_model=List[JobResponse])
@@ -303,3 +359,60 @@ async def get_entry_render(
     entry = await _get_entry_with_access(entry_id, db, current_user)
     return await _stream_drive_file(entry, "render_url", "image/png")
 
+
+# ─── Temp Test Run File Proxies ─────────────────────────────────────
+async def _stream_drive_url(url: str, content_type: str):
+    """Download a file from Drive given its URL and return a StreamingResponse."""
+    file_id = _extract_drive_file_id(url)
+    if not file_id:
+        raise HTTPException(status_code=500, detail="Could not parse Drive file ID")
+
+    from app.core.drive_service import get_drive_service, GoogleDriveService
+    drive = get_drive_service()
+    if not isinstance(drive, GoogleDriveService):
+        raise HTTPException(status_code=501, detail="Drive service not configured")
+
+    try:
+        request = drive.service.files().get_media(fileId=file_id)
+        buffer = io.BytesIO()
+        from googleapiclient.http import MediaIoBaseDownload
+        downloader = MediaIoBaseDownload(buffer, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        buffer.seek(0)
+        return StreamingResponse(buffer, media_type=content_type)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to download from Drive: {e}")
+
+
+@router.get("/{entry_id}/jobs/{job_id}/temp-model")
+async def get_temp_model(
+    entry_id: uuid.UUID,
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stream the temp GLB model from a test-run job."""
+    await _get_entry_with_access(entry_id, db, current_user)
+    job_res = await db.execute(select(Job).where(Job.id == job_id))
+    job = job_res.scalar_one_or_none()
+    if not job or not job.temp_glb_url:
+        raise HTTPException(status_code=404, detail="Temp model not available")
+    return await _stream_drive_url(job.temp_glb_url, "model/gltf-binary")
+
+
+@router.get("/{entry_id}/jobs/{job_id}/temp-render")
+async def get_temp_render(
+    entry_id: uuid.UUID,
+    job_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stream the temp render from a test-run job."""
+    await _get_entry_with_access(entry_id, db, current_user)
+    job_res = await db.execute(select(Job).where(Job.id == job_id))
+    job = job_res.scalar_one_or_none()
+    if not job or not job.temp_render_url:
+        raise HTTPException(status_code=404, detail="Temp render not available")
+    return await _stream_drive_url(job.temp_render_url, "image/png")

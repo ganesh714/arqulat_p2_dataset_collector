@@ -36,6 +36,8 @@ class JobResponse(BaseModel):
     attempts: int
     error_log: Optional[str] = None
     is_test_run: bool = False
+    temp_render_url: Optional[str] = None
+    temp_glb_url: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 

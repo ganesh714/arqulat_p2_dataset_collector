@@ -129,15 +129,25 @@ export default function EntryEditorPage() {
   const [latestJob, setLatestJob] = useState(null);
   const [viewMode, setViewMode] = useState('3d'); // '3d' or 'render'
   const [workersOnline, setWorkersOnline] = useState(0);
+  const [promoting, setPromoting] = useState(false);
   const pollRef = useRef(null);
   const modelViewerRef = useRef(null);
 
   // Build token-bearing URLs for the proxy endpoints
   const token = localStorage.getItem('access_token');
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  const cacheBuster = entry?.updated_at ? `&t=${new Date(entry.updated_at).getTime()}` : '';
-  const modelUrl = entry?.glb_url ? `${baseUrl}/api/entries/${id}/model?token=${token}${cacheBuster}` : null;
-  const renderUrl = entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}${cacheBuster}` : null;
+
+  // If we have a completed test-run job with temp files, show those; otherwise show saved entry files
+  const hasTestRunResult = latestJob?.status === 'done' && latestJob?.is_test_run && (latestJob?.temp_glb_url || latestJob?.temp_render_url);
+  const testCacheBuster = latestJob?.completed_at ? `&t=${new Date(latestJob.completed_at).getTime()}` : '';
+  const entryCacheBuster = entry?.updated_at ? `&t=${new Date(entry.updated_at).getTime()}` : '';
+
+  const modelUrl = hasTestRunResult && latestJob?.temp_glb_url
+    ? `${baseUrl}/api/entries/${id}/jobs/${latestJob.id}/temp-model?token=${token}${testCacheBuster}`
+    : (entry?.glb_url ? `${baseUrl}/api/entries/${id}/model?token=${token}${entryCacheBuster}` : null);
+  const renderUrl = hasTestRunResult && latestJob?.temp_render_url
+    ? `${baseUrl}/api/entries/${id}/jobs/${latestJob.id}/temp-render?token=${token}${testCacheBuster}`
+    : (entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}${entryCacheBuster}` : null);
 
   useEffect(() => {
     fetchEntry();
@@ -246,6 +256,27 @@ export default function EntryEditorPage() {
       setError(err.response?.data?.detail || 'Withdraw failed');
     } finally {
       setWithdrawing(false);
+    }
+  }
+
+  async function handlePromoteTest() {
+    if (!latestJob?.id) return;
+    setPromoting(true);
+    setError('');
+    try {
+      const res = await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
+      setEntry(res.data);
+      // Sync the editor text fields with the promoted values
+      setThinkBlock(res.data.think_block || '');
+      setPhase2Code(res.data.phase2_code || '');
+      // Clear the test run state since it's now saved
+      setLatestJob(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save test result');
+    } finally {
+      setPromoting(false);
     }
   }
 
@@ -546,6 +577,32 @@ export default function EntryEditorPage() {
             </label>
           </div>
 
+          {/* Test run result banner */}
+          {hasTestRunResult && isEditable && (
+            <div style={{
+              background: 'rgba(46, 204, 113, 0.15)',
+              border: '1px solid var(--status-approved)',
+              borderRadius: 8,
+              padding: '10px 14px',
+              marginBottom: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}>
+              <span style={{ fontSize: '0.85rem' }}>
+                🧪 <strong>Test run preview</strong> — this is not saved yet
+              </span>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handlePromoteTest}
+                disabled={promoting}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {promoting ? <><span className="spinner spinner-sm" /> Saving...</> : '💾 Save This Result'}
+              </button>
+            </div>
+          )}
           <div className="ee-viewer-container">
             {viewMode === '3d' ? (
               modelUrl ? (
