@@ -135,8 +135,9 @@ export default function EntryEditorPage() {
   // Build token-bearing URLs for the proxy endpoints
   const token = localStorage.getItem('access_token');
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  const modelUrl = entry?.glb_url ? `${baseUrl}/api/entries/${id}/model?token=${token}` : null;
-  const renderUrl = entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}` : null;
+  const cacheBuster = entry?.updated_at ? `&t=${new Date(entry.updated_at).getTime()}` : '';
+  const modelUrl = entry?.glb_url ? `${baseUrl}/api/entries/${id}/model?token=${token}${cacheBuster}` : null;
+  const renderUrl = entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}${cacheBuster}` : null;
 
   useEffect(() => {
     fetchEntry();
