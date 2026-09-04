@@ -415,7 +415,16 @@ export default function EntryEditorPage() {
 
   return (
     <div className="entry-editor-layout">
-      {/* ── Prompt Header ── */}
+      {/* ── Header ─────────────────────────────────────────── */}
+      <div className="entry-editor-topbar">
+        <button className="btn btn-outline btn-sm" onClick={() => navigate('/entries')}>
+          &larr; Back
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="entry-code-label">{entry.code || 'No code'}</span>
+        </div>
+      </div>
+
       <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '110px' : '52px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -424,14 +433,6 @@ export default function EntryEditorPage() {
               style={{ cursor: 'pointer', marginBottom: isPromptOpen ? '8px' : '0' }}
               onClick={() => setIsPromptOpen(!isPromptOpen)}
             >
-              <button 
-                className="icon-btn" 
-                onClick={(e) => { e.stopPropagation(); navigate('/entries'); }} 
-                title="Back to entries"
-                style={{ padding: '0 4px', marginRight: '8px' }}
-              >
-                &larr;
-              </button>
               <MessageSquare size={14} style={{ marginRight: 4 }} /> 
               Prompt {prompt?.code ? `(${prompt.code})` : ''}
               {isPromptOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -470,10 +471,8 @@ export default function EntryEditorPage() {
         )}
 
         <div className="ee-main-panels">
-          {/* ── Left Column: Editors & Terminal ── */}
-          <div className="ee-left-column" style={{ display: 'flex', flexDirection: 'column', flex: 2, minWidth: 0 }}>
-            {/* ── Editor Panes ── */}
-            <div className="ee-editors-container" style={{ borderRight: 'none', borderBottom: '1px solid var(--border)' }}>
+          {/* ── Editor Panes ── */}
+          <div className="ee-editors-container">
             {/* Think Block */}
             <div className="ee-editor-pane">
               <div className="ee-editor-header">
@@ -536,67 +535,8 @@ export default function EntryEditorPage() {
             </div>
           </div>
 
-          {/* ── Bottom Panel: Terminal Log & Actions (Inside Left Column) ── */}
-          <div className="ee-terminal-area" style={{ height: isTerminalOpen ? '140px' : '44px', transition: 'height 0.2s', borderRight: '1px solid var(--border)' }}>
-            <div className="ee-terminal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsTerminalOpen(!isTerminalOpen)}>
-                  <Terminal size={14} /> Terminal
-                  {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                </span>
-                <button 
-                  className="btn btn-sm ee-copy-btn" 
-                  onClick={handleCopyTerminal} 
-                  title="Copy terminal logs"
-                  style={{ padding: '2px 8px', fontSize: '0.7rem', height: '24px', minHeight: '24px' }}
-                >
-                  <Copy size={12} style={{ marginRight: 4 }} /> 
-                  {terminalCopied ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="ee-bottom-actions">
-                {isEditable && (
-                  <>
-                    <span style={{ fontSize: '0.75rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)', marginRight: '8px' }}>
-                      {workersOnline > 0 ? `🟢 ${workersOnline}` : '⚪ 0'}
-                    </span>
-                    <button className="btn btn-outline btn-sm" onClick={handleSave} disabled={saving}>
-                      {saving ? <span className="spinner spinner-sm" /> : saved ? '✓ Saved!' : 'Save draft'}
-                    </button>
-                    <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={submitting}>
-                      {submitting ? <span className="spinner spinner-sm" /> : 'Submit'}
-                    </button>
-                  </>
-                )}
-                {isSubmitted && (
-                  <button className="btn btn-outline btn-sm" onClick={handleWithdraw} disabled={withdrawing}>
-                    {withdrawing ? <span className="spinner spinner-sm" /> : 'Withdraw'}
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            {isTerminalOpen && (
-              <div className="ee-terminal-content">
-                {latestJob ? (
-                  <div className="ee-log-output">
-                    {latestJob.status === 'pending' && 'Waiting for worker to claim job...'}
-                    {latestJob.status === 'running' && 'Blender is executing the script...'}
-                    {latestJob.status === 'done' && (latestJob.error_log || '✓ Script executed successfully. No errors.')}
-                    {latestJob.status === 'failed' && (latestJob.error_log || 'Job failed — no error log available.')}
-                  </div>
-                ) : (
-                  <div className="ee-log-output" style={{ color: 'var(--text-muted)' }}>
-                    No execution logs yet. Click 'Run' to test your code.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Right Panel: 3D Viewer ── */}
-        <div className="ee-viewer-pane" style={{ borderLeft: '1px solid var(--border)' }}>
+          {/* ── Right Panel: 3D Viewer ── */}
+          <div className="ee-viewer-pane">
 
             {/* View toggle */}
             <div className="ee-view-toggle">
@@ -703,6 +643,64 @@ export default function EntryEditorPage() {
             )}
 
           </div>
+        </div>
+
+        {/* ── Bottom Panel: Terminal Log & Actions ── */}
+        <div className="ee-terminal-area" style={{ height: isTerminalOpen ? '140px' : '44px', transition: 'height 0.2s' }}>
+          <div className="ee-terminal-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setIsTerminalOpen(!isTerminalOpen)}>
+                <Terminal size={14} /> Terminal
+                {isTerminalOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </span>
+              <button 
+                className="btn btn-sm ee-copy-btn" 
+                onClick={handleCopyTerminal} 
+                title="Copy terminal logs"
+                style={{ padding: '2px 8px', fontSize: '0.7rem', height: '24px', minHeight: '24px' }}
+              >
+                <Copy size={12} style={{ marginRight: 4 }} /> 
+                {terminalCopied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <div className="ee-bottom-actions">
+              {isEditable && (
+                <>
+                  <span style={{ fontSize: '0.75rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)' }}>
+                    {workersOnline > 0 ? `🟢 ${workersOnline} worker(s) online` : '⚪ No workers online'}
+                  </span>
+                  <button className="btn btn-outline btn-sm" onClick={handleSave} disabled={saving}>
+                    {saving ? <span className="spinner spinner-sm" /> : saved ? '✓ Saved!' : 'Save draft'}
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? <span className="spinner spinner-sm" /> : 'Submit for review'}
+                  </button>
+                </>
+              )}
+              {isSubmitted && (
+                <button className="btn btn-outline btn-sm" onClick={handleWithdraw} disabled={withdrawing}>
+                  {withdrawing ? <span className="spinner spinner-sm" /> : 'Withdraw'}
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {isTerminalOpen && (
+            <div className="ee-terminal-content">
+              {latestJob ? (
+                <div className="ee-log-output">
+                  {latestJob.status === 'pending' && 'Waiting for worker to claim job...'}
+                  {latestJob.status === 'running' && 'Blender is executing the script...'}
+                  {latestJob.status === 'done' && (latestJob.error_log || '✓ Script executed successfully. No errors.')}
+                  {latestJob.status === 'failed' && (latestJob.error_log || 'Job failed — no error log available.')}
+                </div>
+              ) : (
+                <div className="ee-log-output" style={{ color: 'var(--text-muted)' }}>
+                  No execution logs yet. Click 'Run' to test your code.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

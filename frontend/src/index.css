@@ -709,24 +709,32 @@ textarea.form-input {
 
 /* ── Workspace ── */
 .entry-editor-workspace {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "notes notes"
+    "editors viewer"
+    "terminal viewer";
   flex: 1;
   min-height: 0;
   background: var(--bg-primary);
 }
 
+.ee-reviewer-notes {
+  grid-area: notes;
+}
+
 .ee-main-panels {
-  display: flex;
-  flex: 1;
-  min-height: 0;
+  display: contents;
 }
 
 /* ── Editors (Side-by-Side) ── */
 .ee-editors-container {
+  grid-area: editors;
   display: flex;
-  flex: 2;
   border-right: 1px solid var(--border);
+  min-height: 0;
 }
 
 .ee-editor-pane {
@@ -789,11 +797,12 @@ textarea.form-input {
 
 /* ── Right Panel: Viewer ── */
 .ee-viewer-pane {
-  flex: 1;
+  grid-area: viewer;
   display: flex;
   flex-direction: column;
   position: relative;
   background: var(--bg-card);
+  min-height: 0;
 }
 
 .ee-view-toggle {
@@ -907,10 +916,11 @@ textarea.form-input {
 
 /* ── Terminal Area ── */
 .ee-terminal-area {
-  height: 250px;
+  grid-area: terminal;
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   background: #000000;
   flex-shrink: 0;
 }
