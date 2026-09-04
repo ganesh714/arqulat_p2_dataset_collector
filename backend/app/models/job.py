@@ -25,6 +25,14 @@ class Job(Base, UUIDMixin, TimestampMixin):
     error_log: Mapped[Optional[str]] = mapped_column(Text)
     is_test_run: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     
+    # Snapshot of the script at the time the job was created (for ephemeral test runs)
+    script_snapshot: Mapped[Optional[str]] = mapped_column(Text)
+    think_block_snapshot: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Temporary file URLs for test runs (not saved to Entry until promoted)
+    temp_render_url: Mapped[Optional[str]] = mapped_column(String)
+    temp_glb_url: Mapped[Optional[str]] = mapped_column(String)
+    
     started_at: Mapped[Optional[str]] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[Optional[str]] = mapped_column(DateTime(timezone=True))
 

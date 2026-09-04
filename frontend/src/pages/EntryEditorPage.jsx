@@ -130,16 +130,27 @@ export default function EntryEditorPage() {
   const [latestJob, setLatestJob] = useState(null);
   const [viewMode, setViewMode] = useState('3d'); // '3d' or 'render'
   const [workersOnline, setWorkersOnline] = useState(0);
-
   const [isPromptOpen, setIsPromptOpen] = useState(true);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+  const [promoting, setPromoting] = useState(false);
   const pollRef = useRef(null);
   const modelViewerRef = useRef(null);
 
   // Build token-bearing URLs for the proxy endpoints
   const token = localStorage.getItem('access_token');
-  const modelUrl = entry?.glb_url ? `http://localhost:8000/api/entries/${id}/model?token=${token}` : null;
-  const renderUrl = entry?.render_url ? `http://localhost:8000/api/entries/${id}/render?token=${token}` : null;
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  // If we have a completed test-run job with temp files, show those; otherwise show saved entry files
+  const hasTestRunResult = latestJob?.status === 'done' && latestJob?.is_test_run && (latestJob?.temp_glb_url || latestJob?.temp_render_url);
+  const testCacheBuster = latestJob?.completed_at ? `&t=${new Date(latestJob.completed_at).getTime()}` : '';
+  const entryCacheBuster = entry?.updated_at ? `&t=${new Date(entry.updated_at).getTime()}` : '';
+
+  const modelUrl = hasTestRunResult && latestJob?.temp_glb_url
+    ? `${baseUrl}/api/entries/${id}/jobs/${latestJob.id}/temp-model?token=${token}${testCacheBuster}`
+    : (entry?.glb_url ? `${baseUrl}/api/entries/${id}/model?token=${token}${entryCacheBuster}` : null);
+  const renderUrl = hasTestRunResult && latestJob?.temp_render_url
+    ? `${baseUrl}/api/entries/${id}/jobs/${latestJob.id}/temp-render?token=${token}${testCacheBuster}`
+    : (entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}${entryCacheBuster}` : null);
 
   useEffect(() => {
     fetchEntry();
@@ -162,7 +173,7 @@ export default function EntryEditorPage() {
 
         // Fetch category name from taxonomy
         try {
-          const taxRes = await api.get('/api/taxonomy');
+          const taxRes = await api.get('/api/taxonomy/phases');
           for (const phase of taxRes.data) {
             for (const sub of (phase.subphases || [])) {
               for (const cat of (sub.categories || [])) {
@@ -213,8 +224,19 @@ export default function EntryEditorPage() {
   async function handleSave() {
     setSaving(true);
     setSaved(false);
+    setError('');
     try {
-      const res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      let res;
+      if (latestJob?.id && latestJob.status === 'done' && latestJob.is_test_run) {
+        // Promote the test run (this syncs the DB script to the snapshot that actually generated the model)
+        res = await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
+        setLatestJob(null);
+        setThinkBlock(res.data.think_block || '');
+        setPhase2Code(res.data.phase2_code || '');
+      } else {
+        // Normal save
+        res = await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      }
       setEntry(res.data);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -228,8 +250,16 @@ export default function EntryEditorPage() {
   async function handleSubmit() {
     if (!phase2Code.trim()) { setError('Cannot submit an empty phase 2 script.'); return; }
     setSubmitting(true);
+    setError('');
     try {
-      await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      if (latestJob?.id && latestJob.status === 'done' && latestJob.is_test_run) {
+        // Promote before submitting to ensure model is saved
+        await api.post(`/api/entries/${id}/promote-test`, { job_id: latestJob.id });
+        setLatestJob(null);
+      } else {
+        // Normal save before submitting
+        await api.patch(`/api/entries/${id}`, { think_block: thinkBlock, phase2_code: phase2Code });
+      }
       const res = await api.post(`/api/entries/${id}/submit`);
       setEntry(res.data);
     } catch (err) {
@@ -515,6 +545,25 @@ export default function EntryEditorPage() {
                 Render
               </label>
             </div>
+
+            {/* Test run result banner */}
+            {hasTestRunResult && isEditable && (
+              <div style={{
+                background: 'rgba(46, 204, 113, 0.15)',
+                border: '1px solid var(--status-approved)',
+                borderRadius: 8,
+                padding: '10px 14px',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}>
+                <span style={{ fontSize: '0.85rem' }}>
+                  🧪 <strong>Test run preview</strong> — click "Save draft" below to keep this result.
+                </span>
+              </div>
+            )}
 
             <div className="ee-viewer-container">
               {viewMode === '3d' ? (

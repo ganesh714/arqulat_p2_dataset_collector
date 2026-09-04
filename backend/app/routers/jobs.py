@@ -119,7 +119,9 @@ async def claim_job(
     # Assemble the full runnable script on the fly for the worker (no think block)
     full_script = None
     if entry:
-        full_script = assemble_executable_script(entry.phase2_code)
+        # Prefer the job's script snapshot (for test runs) over the entry's saved code
+        code_to_run = job.script_snapshot or entry.phase2_code
+        full_script = assemble_executable_script(code_to_run)
 
     return JobClaimResponse(
         id=job.id,
@@ -141,14 +143,11 @@ async def complete_job(
     _token: bool = Depends(verify_worker_token),
 ):
     """
-    Mark a job as done, upload render/GLB to Google Drive,
-    and store the returned URLs on the Entry.
+    Mark a job as done, upload render/GLB to Google Drive.
 
-    Files are organized in Drive as:
-        /{phase}/{subphase}/{category}/{entry_code}/render.png
-        /{phase}/{subphase}/{category}/{entry_code}/model.glb
+    For test runs: files go to a temp folder, URLs stored on Job row.
+    For submit runs: files go to the permanent taxonomy path, URLs stored on Entry.
     """
-    from sqlalchemy.orm import selectinload
     from app.models.prompt import Prompt
     from app.models.taxonomy import Category, Subphase, Phase
 
@@ -182,19 +181,38 @@ async def complete_job(
                         entry_label = entry.code or str(entry.id)
                         folder_path = f"{phase.name}/{subphase.name}/{category.name}/{entry_label}"
 
+    # For test runs, upload to a temp subfolder
+    if job.is_test_run:
+        upload_path = f"_test_runs/{job.id}"
+    else:
+        upload_path = folder_path
+
     drive = get_drive_service()
 
     # Upload render image if provided
+    render_url = None
     if body.render_file_b64:
         render_bytes = base64.b64decode(body.render_file_b64)
-        render_path = f"{folder_path}/{body.render_filename}"
-        entry.render_url = await drive.upload(render_bytes, render_path)
+        render_path = f"{upload_path}/{body.render_filename}"
+        render_url = await drive.upload(render_bytes, render_path)
 
     # Upload GLB file if provided
+    glb_url = None
     if body.glb_file_b64:
         glb_bytes = base64.b64decode(body.glb_file_b64)
-        glb_path = f"{folder_path}/{body.glb_filename}"
-        entry.glb_url = await drive.upload(glb_bytes, glb_path)
+        glb_path = f"{upload_path}/{body.glb_filename}"
+        glb_url = await drive.upload(glb_bytes, glb_path)
+
+    if job.is_test_run:
+        # Store URLs on the Job (ephemeral), NOT the Entry
+        job.temp_render_url = render_url
+        job.temp_glb_url = glb_url
+    else:
+        # Submit run — store on Entry (permanent)
+        if render_url:
+            entry.render_url = render_url
+        if glb_url:
+            entry.glb_url = glb_url
 
     now = datetime.now(timezone.utc)
     job.status = JobStatus.done
