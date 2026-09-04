@@ -85,8 +85,8 @@ async def list_entries(
         query = query.join(Batch, Entry.batch_id == Batch.id).where(Batch.reviewer_id == current_user.id)
     # Lead and Admin see all, so no additional where clause needed for them
 
-    # Explicit order to prevent rows from jumping to bottom on update (Postgres MVCC behavior)
-    query = query.order_by(Entry.created_at.asc())
+    # Explicit order by 'code' so entries group logically (e.g. diningtable_0001) and don't jump around
+    query = query.order_by(Entry.code.asc())
 
     result = await db.execute(query)
     return result.scalars().all()
