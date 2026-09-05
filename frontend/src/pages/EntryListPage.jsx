@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../api';
 
 export default function EntryListPage() {
@@ -70,10 +70,11 @@ export default function EntryListPage() {
           {entries
             .filter((e) => filter === 'all' || e.status === filter)
             .map((entry) => (
-              <div
+              <Link
+                to={`/entries/${entry.id}`}
                 key={entry.id}
                 className="entry-card"
-                onClick={() => navigate(`/entries/${entry.id}`)}
+                style={{ textDecoration: 'none', color: 'inherit' }}
               >
                 <div className="entry-card-left">
                   <span className="entry-prompt">
@@ -88,7 +89,7 @@ export default function EntryListPage() {
                     {entry.status.replace('_', ' ')}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
         </div>
       )}
