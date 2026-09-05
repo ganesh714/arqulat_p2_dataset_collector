@@ -189,6 +189,10 @@ export default function BatchesPage() {
     } finally { setCreatingBatch(false); }
   }
 
+  const sortedAssignments = detail?.assignments ? [...detail.assignments].sort((a, b) => (a.prompt_code || '').localeCompare(b.prompt_code || '')) : [];
+  const sortedBatchPrompts = detail?.batch_prompts ? [...detail.batch_prompts].sort((a, b) => (a.code || '').localeCompare(b.code || '')) : [];
+  const sortedGlobalPrompts = [...prompts].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><span className="spinner" /></div>;
 
   return (
@@ -356,7 +360,7 @@ export default function BatchesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {detail.assignments.map(row => (
+                        {sortedAssignments.map(row => (
                           <tr key={row.assignment_id} style={{ borderBottom: '1px solid var(--border)' }}>
                             <td style={{ padding: '10px 8px 10px 0' }}>
                               <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent)', fontSize: '0.8rem' }}>
@@ -415,7 +419,7 @@ export default function BatchesPage() {
                     <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts have been added to this batch yet.</p>
                   ) : (
                     <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                      {detail.batch_prompts.map(p => {
+                      {sortedBatchPrompts.map(p => {
                         const alreadyAssigned = assignedPromptIds.has(p.id);
                         const checked = selectedPromptIds.has(p.id);
                         return (
@@ -465,7 +469,7 @@ export default function BatchesPage() {
                     <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts exist in the system yet.</p>
                   ) : (
                     <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                      {prompts.map(p => {
+                      {sortedGlobalPrompts.map(p => {
                         const alreadyInBatch = batchPromptIds.has(p.id);
                         const checked = adminSelectedPromptIds.has(p.id);
                         return (
