@@ -8,6 +8,7 @@ Workflow:
   4. Reviewer reviews submitted entries
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from typing import List
@@ -112,6 +113,7 @@ async def get_batch_detail(
     - reviewer name
     - list of contributors (members)
     - all assignments with resolved names and entry statuses
+    Optimized: uses bulk queries instead of per-row lookups.
     """
     batch_res = await db.execute(select(Batch).where(Batch.id == batch_id))
     batch = batch_res.scalar_one_or_none()
@@ -127,10 +129,18 @@ async def get_batch_detail(
         select(BatchMember).where(BatchMember.batch_id == batch_id)
     )
     members = members_res.scalars().all()
+    member_user_ids = [m.user_id for m in members]
+
+    # Bulk fetch all member users
+    if member_user_ids:
+        users_res = await db.execute(select(User).where(User.id.in_(member_user_ids)))
+        users_map = {u.id: u for u in users_res.scalars().all()}
+    else:
+        users_map = {}
+
     member_list = []
     for m in members:
-        u_res = await db.execute(select(User).where(User.id == m.user_id))
-        u = u_res.scalar_one_or_none()
+        u = users_map.get(m.user_id)
         if u:
             member_list.append({
                 "id": str(u.id),
@@ -144,24 +154,39 @@ async def get_batch_detail(
     )
     assignments = assignments_res.scalars().all()
 
+    # Bulk fetch all prompts and contributors referenced by assignments
+    assign_prompt_ids = list({a.prompt_id for a in assignments})
+    assign_contributor_ids = list({a.contributor_id for a in assignments})
+
+    if assign_prompt_ids:
+        prompts_res = await db.execute(select(Prompt).where(Prompt.id.in_(assign_prompt_ids)))
+        prompts_map = {p.id: p for p in prompts_res.scalars().all()}
+    else:
+        prompts_map = {}
+
+    if assign_contributor_ids:
+        contribs_res = await db.execute(select(User).where(User.id.in_(assign_contributor_ids)))
+        contribs_map = {u.id: u for u in contribs_res.scalars().all()}
+    else:
+        contribs_map = {}
+
+    # Bulk fetch all entries for this batch
+    entries_res = await db.execute(
+        select(Entry).where(Entry.batch_id == batch_id).order_by(Entry.code.asc())
+    )
+    all_entries = entries_res.scalars().all()
+    # Group entries by (prompt_id, contributor_id)
+    entries_by_key = {}
+    for e in all_entries:
+        key = (e.prompt_id, e.contributor_id)
+        entries_by_key.setdefault(key, []).append(e)
+
     rows = []
     for a in assignments:
-        p_res = await db.execute(select(Prompt).where(Prompt.id == a.prompt_id))
-        prompt = p_res.scalar_one_or_none()
-
-        c_res = await db.execute(select(User).where(User.id == a.contributor_id))
-        contributor = c_res.scalar_one_or_none()
-
-        entries_res = await db.execute(
-            select(Entry).where(
-                and_(
-                    Entry.batch_id == batch_id,
-                    Entry.prompt_id == a.prompt_id,
-                    Entry.contributor_id == a.contributor_id
-                )
-            ).order_by(Entry.created_at.asc())
-        )
-        entries = entries_res.scalars().all()
+        prompt = prompts_map.get(a.prompt_id)
+        contributor = contribs_map.get(a.contributor_id)
+        key = (a.prompt_id, a.contributor_id)
+        entries = entries_by_key.get(key, [])
 
         if not entries:
             rows.append({
@@ -216,6 +241,54 @@ async def get_batch_detail(
         "batch_prompts": batch_prompts_list,
         "assignments": rows,
     }
+
+
+# ── Admin: Add Contributors to Existing Batch ────────────────────────
+
+class AddMembersRequest(BaseModel):
+    contributor_ids: List[uuid.UUID]
+
+@router.post("/{batch_id}/members")
+async def add_members_to_batch(
+    batch_id: uuid.UUID,
+    body: AddMembersRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    """
+    Admin adds new contributors to an existing batch.
+    Skips users who are already members.
+    """
+    batch_res = await db.execute(select(Batch).where(Batch.id == batch_id))
+    batch = batch_res.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    added = 0
+    skipped = 0
+    for cid in body.contributor_ids:
+        # Check if already a member
+        existing = await db.execute(
+            select(BatchMember).where(
+                and_(BatchMember.batch_id == batch_id, BatchMember.user_id == cid)
+            )
+        )
+        if existing.scalar_one_or_none():
+            skipped += 1
+            continue
+
+        # Validate user exists and is a contributor
+        u_res = await db.execute(select(User).where(User.id == cid))
+        u = u_res.scalar_one_or_none()
+        if not u or u.role != "contributor":
+            skipped += 1
+            continue
+
+        db.add(BatchMember(batch_id=batch_id, user_id=cid))
+        added += 1
+
+    await db.commit()
+    return {"added": added, "skipped": skipped}
 
 
 # ── Admin/Lead: Assign Prompts to Batch ──────────────────────────────

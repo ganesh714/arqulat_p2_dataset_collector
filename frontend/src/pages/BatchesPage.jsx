@@ -66,6 +66,10 @@ export default function BatchesPage() {
   const [adminSelectedPromptIds, setAdminSelectedPromptIds] = useState(new Set());
   const [addingPrompts, setAddingPrompts] = useState(false);
 
+  // Add members state
+  const [newMemberIds, setNewMemberIds] = useState(new Set());
+  const [addingMembers, setAddingMembers] = useState(false);
+
   function togglePrompt(id) {
     setSelectedPromptIds(prev => {
       const next = new Set(prev);
@@ -114,6 +118,29 @@ export default function BatchesPage() {
     } catch (err) {
       setToast({ type: 'error', message: err.response?.data?.detail || 'Assignment failed' });
     } finally { setAssigning(false); }
+  }
+
+  async function handleAddMembers() {
+    if (newMemberIds.size === 0) return setToast({ type: 'error', message: 'Select at least one contributor' });
+    setAddingMembers(true);
+    try {
+      const res = await api.post(`/api/batches/${activeBatch.id}/members`, {
+        contributor_ids: Array.from(newMemberIds),
+      });
+      setNewMemberIds(new Set());
+      setToast({ type: 'success', message: `Added ${res.data.added} contributor(s). ${res.data.skipped} already in batch.` });
+      await loadDetail(activeBatch.id);
+    } catch (err) {
+      setToast({ type: 'error', message: err.response?.data?.detail || 'Failed to add members' });
+    } finally { setAddingMembers(false); }
+  }
+
+  function toggleNewMember(id) {
+    setNewMemberIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   }
 
   // Stats from detail
@@ -278,6 +305,10 @@ export default function BatchesPage() {
                   {(user?.role === 'admin' || user?.role === 'lead') && (
                     <button className={`btn btn-sm ${panelView === 'manage_prompts' ? 'btn-primary' : 'btn-outline'}`}
                       onClick={() => setPanelView('manage_prompts')}>+ Add Prompts to Batch</button>
+                  )}
+                  {user?.role === 'admin' && (
+                    <button className={`btn btn-sm ${panelView === 'add_members' ? 'btn-primary' : 'btn-outline'}`}
+                      onClick={() => setPanelView('add_members')}>+ Add Members</button>
                   )}
                 </div>
               </div>
@@ -458,6 +489,52 @@ export default function BatchesPage() {
                               </div>
                               <div style={{ fontSize: '0.85rem', lineHeight: 1.4 }}>{p.prompt_text}</div>
                             </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── ADD MEMBERS (Admin View) ── */}
+              {panelView === 'add_members' && (
+                <>
+                  <div style={{
+                    display: 'flex', gap: 12, marginBottom: 16, padding: '12px 16px',
+                    background: 'var(--bg-primary)', borderRadius: 'var(--radius)', alignItems: 'center', justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '0.85rem' }}>Select contributors to add to this batch.</span>
+                    <button className="btn btn-primary btn-sm" onClick={handleAddMembers}
+                      disabled={addingMembers || newMemberIds.size === 0} style={{ whiteSpace: 'nowrap' }}>
+                      {addingMembers ? <span className="spinner" /> : `Add Members (${newMemberIds.size})`}
+                    </button>
+                  </div>
+
+                  {contributorUsers.length === 0 ? (
+                    <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No contributors in the system.</p>
+                  ) : (
+                    <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                      {contributorUsers.map(u => {
+                        const alreadyMember = detail.contributors?.some(c => c.id === u.id);
+                        const checked = newMemberIds.has(u.id);
+                        return (
+                          <label key={u.id} style={{
+                            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                            borderBottom: '1px solid var(--border)', cursor: alreadyMember ? 'default' : 'pointer',
+                            background: alreadyMember ? 'rgba(16,185,129,0.04)' : checked ? 'rgba(99,102,241,0.06)' : 'transparent',
+                            opacity: alreadyMember ? 0.6 : 1,
+                          }}>
+                            <input type="checkbox" checked={checked} disabled={alreadyMember}
+                              onChange={() => toggleNewMember(u.id)}
+                              style={{ accentColor: 'var(--accent)' }} />
+                            <div>
+                              <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{u.display_name}</div>
+                              <div className="text-muted" style={{ fontSize: '0.75rem' }}>{u.email}</div>
+                            </div>
+                            {alreadyMember && (
+                              <span className="text-muted" style={{ fontSize: '0.7rem', marginLeft: 'auto' }}>✓ in batch</span>
+                            )}
                           </label>
                         );
                       })}
