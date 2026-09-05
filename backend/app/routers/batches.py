@@ -152,27 +152,40 @@ async def get_batch_detail(
         c_res = await db.execute(select(User).where(User.id == a.contributor_id))
         contributor = c_res.scalar_one_or_none()
 
-        entry_res = await db.execute(
+        entries_res = await db.execute(
             select(Entry).where(
                 and_(
                     Entry.batch_id == batch_id,
                     Entry.prompt_id == a.prompt_id,
                     Entry.contributor_id == a.contributor_id
                 )
-            )
+            ).order_by(Entry.created_at.asc())
         )
-        entry = entry_res.scalar_one_or_none()
+        entries = entries_res.scalars().all()
 
-        rows.append({
-            "assignment_id": str(a.id),
-            "prompt_code": prompt.code if prompt else None,
-            "prompt_text": prompt.prompt_text if prompt else "?",
-            "prompt_id": str(a.prompt_id),
-            "contributor_name": contributor.display_name if contributor else "?",
-            "contributor_id": str(a.contributor_id),
-            "entry_code": entry.code if entry else None,
-            "entry_status": entry.status.value if entry else "no_entry",
-        })
+        if not entries:
+            rows.append({
+                "assignment_id": str(a.id),
+                "prompt_code": prompt.code if prompt else None,
+                "prompt_text": prompt.prompt_text if prompt else "?",
+                "prompt_id": str(a.prompt_id),
+                "contributor_name": contributor.display_name if contributor else "?",
+                "contributor_id": str(a.contributor_id),
+                "entry_code": None,
+                "entry_status": "no_entry",
+            })
+        else:
+            for entry in entries:
+                rows.append({
+                    "assignment_id": str(a.id),
+                    "prompt_code": prompt.code if prompt else None,
+                    "prompt_text": prompt.prompt_text if prompt else "?",
+                    "prompt_id": str(a.prompt_id),
+                    "contributor_name": contributor.display_name if contributor else "?",
+                    "contributor_id": str(a.contributor_id),
+                    "entry_code": entry.code,
+                    "entry_status": entry.status.value,
+                })
 
     # Prompts assigned to this batch
     batch_prompts_res = await db.execute(
