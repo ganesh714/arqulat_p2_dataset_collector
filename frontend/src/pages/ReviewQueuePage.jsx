@@ -5,6 +5,7 @@ export default function ReviewQueuePage() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   // Review modal/inline state
   const [activeEntry, setActiveEntry] = useState(null);
   const [action, setAction] = useState('approved');
@@ -121,7 +122,7 @@ export default function ReviewQueuePage() {
                     {viewMode === '3d' ? (
                       activeEntry.glb_url ? (
                         <model-viewer
-                          src={`http://localhost:8000/api/entries/${activeEntry.id}/model?token=${localStorage.getItem('access_token')}`}
+                          src={`${baseUrl}/api/entries/${activeEntry.id}/model?token=${localStorage.getItem('access_token')}`}
                           auto-rotate
                           camera-controls
                           shadow-intensity="1"
@@ -133,7 +134,7 @@ export default function ReviewQueuePage() {
                     ) : (
                       activeEntry.render_url ? (
                         <img 
-                          src={`http://localhost:8000/api/entries/${activeEntry.id}/render?token=${localStorage.getItem('access_token')}`} 
+                          src={`${baseUrl}/api/entries/${activeEntry.id}/render?token=${localStorage.getItem('access_token')}`} 
                           alt="Render" 
                           style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
                         />
