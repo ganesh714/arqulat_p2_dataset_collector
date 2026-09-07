@@ -366,33 +366,33 @@ def _extract_drive_file_id(url: str) -> Optional[str]:
     return None
 
 
-def _get_drive_access_token() -> str:
-    """Get a valid access token from the Drive service credentials."""
+def _get_drive_access_token() -> Optional[str]:
+    """Get a valid access token from the Drive service credentials, or None if unavailable/expired."""
     import logging
     logger = logging.getLogger(__name__)
     try:
         from app.core.drive_service import get_drive_service, GoogleDriveService
         drive = get_drive_service()
         if not isinstance(drive, GoogleDriveService):
-            raise HTTPException(status_code=501, detail="Drive service not configured")
+            return None
         creds = drive.credentials
-        logger.info(f"Credentials valid: {creds.valid}, token: {'yes' if creds.token else 'no'}")
+        if not creds:
+            return None
         if not creds.valid:
             import google.auth.transport.requests
             creds.refresh(google.auth.transport.requests.Request())
-            logger.info(f"After refresh - valid: {creds.valid}, token: {'yes' if creds.token else 'no'}")
         return creds.token
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.exception(f"Failed to get drive access token: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get Drive access token: {type(e).__name__}: {e}")
+        logger.warning(f"Could not get/refresh Drive access token: {e}")
+        return None
 
 
 async def _stream_drive_file_httpx(drive_url: str, content_type: str):
     """
-    Stream a file from Google Drive via the API using httpx.
-    Streams chunks to the client as they arrive — no full buffering.
+    Stream a file from Google Drive via httpx.
+    1. First tries Google Drive's public content CDN (works without OAuth tokens).
+    2. Falls back to authenticated Drive API if public fetch fails and token is available.
+    Streams chunks directly to the client as they arrive — no full buffering.
     """
     import httpx
     import logging
@@ -402,47 +402,71 @@ async def _stream_drive_file_httpx(drive_url: str, content_type: str):
     if not file_id:
         raise HTTPException(status_code=500, detail="Could not parse Drive file ID")
 
-    try:
-        access_token = _get_drive_access_token()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Token error: {type(e).__name__}: {e}")
-
-    api_url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&acknowledgeAbuse=true"
-    logger.info(f"Streaming Drive file: {file_id}")
+    public_urls = [
+        f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t",
+        f"https://drive.google.com/uc?export=download&id={file_id}&confirm=t",
+    ]
 
     async def _generate():
+        streamed = False
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=120.0) as client:
-                async with client.stream(
-                    "GET",
-                    api_url,
-                    headers={"Authorization": f"Bearer {access_token}"},
-                ) as resp:
-                    logger.info(f"Drive API response: {resp.status_code}")
-                    if resp.status_code != 200:
-                        body = await resp.aread()
-                        logger.error(f"Drive API error: {resp.status_code} - {body[:500]}")
-                        return
-                    async for chunk in resp.aiter_bytes(chunk_size=65536):
-                        yield chunk
+                # Try public CDN URLs first (no OAuth needed)
+                for url in public_urls:
+                    try:
+                        async with client.stream("GET", url) as resp:
+                            if resp.status_code == 200:
+                                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                                    yield chunk
+                                streamed = True
+                                break
+                            else:
+                                logger.warning(f"Drive public stream returned {resp.status_code} for {file_id}")
+                    except Exception as e:
+                        logger.warning(f"Error streaming from {url}: {e}")
+
+                # If public streaming failed, try authenticated Drive API
+                if not streamed:
+                    access_token = _get_drive_access_token()
+                    if access_token:
+                        api_url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&acknowledgeAbuse=true"
+                        async with client.stream(
+                            "GET",
+                            api_url,
+                            headers={"Authorization": f"Bearer {access_token}"},
+                        ) as resp_auth:
+                            if resp_auth.status_code == 200:
+                                async for chunk in resp_auth.aiter_bytes(chunk_size=65536):
+                                    yield chunk
+                            else:
+                                body = await resp_auth.aread()
+                                logger.error(f"Drive API auth fallback failed ({resp_auth.status_code}): {body[:300]}")
+                    else:
+                        logger.error(f"Could not stream file {file_id} via public CDN or authenticated API")
         except Exception as e:
             logger.exception(f"Error streaming from Drive: {e}")
 
-    return StreamingResponse(_generate(), media_type=content_type)
+    return StreamingResponse(
+        _generate(),
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=3600",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
 
 
 @router.get("/debug/drive-test")
 async def debug_drive_test(
     current_user: User = Depends(get_current_user),
 ):
-    """Debug endpoint to test Drive access token retrieval."""
-    try:
-        token = _get_drive_access_token()
-        return {"status": "ok", "token_length": len(token) if token else 0, "token_prefix": token[:10] + "..." if token else None}
-    except Exception as e:
-        return {"status": "error", "error": f"{type(e).__name__}: {e}"}
+    """Debug endpoint to test Drive access."""
+    token = _get_drive_access_token()
+    return {
+        "status": "ok" if token else "token_refresh_failed",
+        "has_token": bool(token),
+        "token_prefix": token[:10] + "..." if token else None,
+    }
 
 
 @router.get("/{entry_id}/model")
