@@ -385,14 +385,18 @@ async def _stream_drive_file(entry: Entry, url_field: str, content_type: str):
         raise HTTPException(status_code=501, detail="Drive service not configured — cannot stream files")
 
     try:
-        request = drive.service.files().get_media(fileId=file_id)
-        buffer = io.BytesIO()
-        from googleapiclient.http import MediaIoBaseDownload
-        downloader = MediaIoBaseDownload(buffer, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-        buffer.seek(0)
+        def _download():
+            request = drive.service.files().get_media(fileId=file_id, supportsAllDrives=True, acknowledgeAbuse=True)
+            buffer = io.BytesIO()
+            from googleapiclient.http import MediaIoBaseDownload
+            downloader = MediaIoBaseDownload(buffer, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
+            buffer.seek(0)
+            return buffer
+            
+        buffer = await asyncio.to_thread(_download)
         return StreamingResponse(buffer, media_type=content_type)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to download from Drive: {e}")
@@ -433,14 +437,18 @@ async def _stream_drive_url(url: str, content_type: str):
         raise HTTPException(status_code=501, detail="Drive service not configured")
 
     try:
-        request = drive.service.files().get_media(fileId=file_id)
-        buffer = io.BytesIO()
-        from googleapiclient.http import MediaIoBaseDownload
-        downloader = MediaIoBaseDownload(buffer, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-        buffer.seek(0)
+        def _download():
+            request = drive.service.files().get_media(fileId=file_id, supportsAllDrives=True, acknowledgeAbuse=True)
+            buffer = io.BytesIO()
+            from googleapiclient.http import MediaIoBaseDownload
+            downloader = MediaIoBaseDownload(buffer, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
+            buffer.seek(0)
+            return buffer
+            
+        buffer = await asyncio.to_thread(_download)
         return StreamingResponse(buffer, media_type=content_type)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to download from Drive: {e}")
