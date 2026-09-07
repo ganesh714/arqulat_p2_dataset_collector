@@ -352,32 +352,63 @@ async def list_entry_jobs(
     return result.scalars().all()
 
 
-# ─── Drive File Helpers ──────────────────────────────────────────────
+# ─── Drive File Streaming (httpx) ────────────────────────────────────
 def _extract_drive_file_id(url: str) -> Optional[str]:
     """Extract Google Drive file ID from various URL formats."""
     if not url:
         return None
-    # https://drive.google.com/file/d/FILE_ID/view?usp=sharing
     m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", url)
     if m:
         return m.group(1)
-    # https://drive.google.com/uc?id=FILE_ID
     m = re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url)
     if m:
         return m.group(1)
     return None
 
 
-def _drive_direct_url(drive_url: str) -> str:
+def _get_drive_access_token() -> str:
+    """Get a valid access token from the Drive service credentials."""
+    from app.core.drive_service import get_drive_service, GoogleDriveService
+    drive = get_drive_service()
+    if not isinstance(drive, GoogleDriveService):
+        raise HTTPException(status_code=501, detail="Drive service not configured")
+    # The credentials object auto-refreshes when accessing .token
+    creds = drive.service._http.credentials
+    if not creds.valid:
+        import google.auth.transport.requests
+        creds.refresh(google.auth.transport.requests.Request())
+    return creds.token
+
+
+async def _stream_drive_file_httpx(drive_url: str, content_type: str):
     """
-    Convert a Google Drive sharing URL to a direct-download URL.
-    Files are already set to 'anyone can read' during upload,
-    so the browser can fetch them directly from Google's CDN.
+    Stream a file from Google Drive via the API using httpx.
+    Streams chunks to the client as they arrive — no full buffering.
+    First byte arrives fast so Render's 30s timeout is not hit.
+    Served from our origin so no CORS issues.
     """
+    import httpx
+
     file_id = _extract_drive_file_id(drive_url)
     if not file_id:
         raise HTTPException(status_code=500, detail="Could not parse Drive file ID")
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    access_token = _get_drive_access_token()
+    api_url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&acknowledgeAbuse=true"
+
+    async def _generate():
+        async with httpx.AsyncClient(follow_redirects=True, timeout=120.0) as client:
+            async with client.stream(
+                "GET",
+                api_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            ) as resp:
+                if resp.status_code != 200:
+                    return
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    yield chunk
+
+    return StreamingResponse(_generate(), media_type=content_type)
 
 
 @router.get("/{entry_id}/model")
@@ -386,11 +417,11 @@ async def get_entry_model(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Redirect to the Google Drive direct download URL for the GLB model."""
+    """Stream the GLB model file from Drive."""
     entry = await _get_entry_with_access(entry_id, db, current_user)
     if not entry.glb_url:
         raise HTTPException(status_code=404, detail="No model available for this entry")
-    return RedirectResponse(url=_drive_direct_url(entry.glb_url))
+    return await _stream_drive_file_httpx(entry.glb_url, "model/gltf-binary")
 
 
 @router.get("/{entry_id}/render")
@@ -399,14 +430,14 @@ async def get_entry_render(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Redirect to the Google Drive direct download URL for the render."""
+    """Stream the render PNG from Drive."""
     entry = await _get_entry_with_access(entry_id, db, current_user)
     if not entry.render_url:
         raise HTTPException(status_code=404, detail="No render available for this entry")
-    return RedirectResponse(url=_drive_direct_url(entry.render_url))
+    return await _stream_drive_file_httpx(entry.render_url, "image/png")
 
 
-# ─── Temp Test Run File Redirects ───────────────────────────────────
+# ─── Temp Test Run File Streaming ───────────────────────────────────
 
 @router.get("/{entry_id}/jobs/{job_id}/temp-model")
 async def get_temp_model(
@@ -415,13 +446,13 @@ async def get_temp_model(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Redirect to the temp GLB model from a test-run job."""
+    """Stream the temp GLB model from a test-run job."""
     await _get_entry_with_access(entry_id, db, current_user)
     job_res = await db.execute(select(Job).where(Job.id == job_id))
     job = job_res.scalar_one_or_none()
     if not job or not job.temp_glb_url:
         raise HTTPException(status_code=404, detail="Temp model not available")
-    return RedirectResponse(url=_drive_direct_url(job.temp_glb_url))
+    return await _stream_drive_file_httpx(job.temp_glb_url, "model/gltf-binary")
 
 
 @router.get("/{entry_id}/jobs/{job_id}/temp-render")
@@ -431,10 +462,11 @@ async def get_temp_render(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Redirect to the temp render from a test-run job."""
+    """Stream the temp render from a test-run job."""
     await _get_entry_with_access(entry_id, db, current_user)
     job_res = await db.execute(select(Job).where(Job.id == job_id))
     job = job_res.scalar_one_or_none()
     if not job or not job.temp_render_url:
         raise HTTPException(status_code=404, detail="Temp render not available")
-    return RedirectResponse(url=_drive_direct_url(job.temp_render_url))
+    return await _stream_drive_file_httpx(job.temp_render_url, "image/png")
+
