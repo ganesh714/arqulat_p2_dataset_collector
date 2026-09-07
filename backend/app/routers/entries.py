@@ -372,8 +372,7 @@ def _get_drive_access_token() -> str:
     drive = get_drive_service()
     if not isinstance(drive, GoogleDriveService):
         raise HTTPException(status_code=501, detail="Drive service not configured")
-    # The credentials object auto-refreshes when accessing .token
-    creds = drive.service._http.credentials
+    creds = drive.credentials
     if not creds.valid:
         import google.auth.transport.requests
         creds.refresh(google.auth.transport.requests.Request())

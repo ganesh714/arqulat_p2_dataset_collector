@@ -77,7 +77,7 @@ class GoogleDriveService(DriveServiceBase):
         self.root_folder_id = folder_id
 
         # Authenticate with standard OAuth refresh token
-        creds = Credentials(
+        self.credentials = Credentials(
             token=None,
             refresh_token=refresh_token,
             client_id=client_id,
@@ -85,7 +85,7 @@ class GoogleDriveService(DriveServiceBase):
             token_uri="https://oauth2.googleapis.com/token",
             scopes=["https://www.googleapis.com/auth/drive.file"],
         )
-        self.service = build("drive", "v3", credentials=creds)
+        self.service = build("drive", "v3", credentials=self.credentials)
 
         # Cache: "parent_id/folder_name" -> folder_id
         self._folder_cache: Dict[str, str] = {}
