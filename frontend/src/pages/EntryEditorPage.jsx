@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronUp, ChevronDown, Terminal, MessageSquare, Copy } from 'lucide-react';
+import { ChevronUp, ChevronDown, Terminal, MessageSquare, Copy, Keyboard } from 'lucide-react';
 import api from '../api';
 
 const POLL_INTERVAL = 3000;
@@ -153,6 +153,47 @@ export default function EntryEditorPage() {
   const renderUrl = hasTestRunResult && latestJob?.temp_render_url
     ? `${baseUrl}/api/entries/${id}/jobs/${latestJob.id}/temp-render?token=${token}${testCacheBuster}`
     : (entry?.render_url ? `${baseUrl}/api/entries/${id}/render?token=${token}${entryCacheBuster}` : null);
+
+  // ─── Keyboard Shortcuts ──────────────────────────────────
+  const handleSaveRef = useRef(null);
+  const handleTestRunRef = useRef(null);
+  const handleCopyTerminalRef = useRef(null);
+  const isEditableRef = useRef(false);
+
+  // Keep refs in sync so the keydown handler always calls the latest versions
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+    handleTestRunRef.current = handleTestRun;
+    handleCopyTerminalRef.current = handleCopyTerminal;
+  });
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      // Ctrl+Enter → Run (Test)
+      if (e.ctrlKey && !e.shiftKey && e.key === 'Enter' && isEditableRef.current) {
+        e.preventDefault();
+        handleTestRunRef.current?.();
+        return;
+      }
+      // Ctrl+Shift+S → Save Draft (hard combo to prevent accidental save)
+      if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's') && isEditableRef.current) {
+        e.preventDefault();
+        handleSaveRef.current?.();
+        return;
+      }
+      // Ctrl+Shift+C → Copy Terminal (only when NOT selecting text in a textarea)
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        const sel = window.getSelection()?.toString();
+        if (!sel) {
+          e.preventDefault();
+          handleCopyTerminalRef.current?.();
+        }
+        return;
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     fetchEntry();
@@ -426,6 +467,7 @@ export default function EntryEditorPage() {
 
   const isEditable = ['draft', 'needs_fix'].includes(entry.status);
   const isSubmitted = entry.status === 'submitted';
+  isEditableRef.current = isEditable;
 
   const jobStatusColor = {
     pending: 'var(--status-submitted)',
@@ -547,6 +589,7 @@ export default function EntryEditorPage() {
                       className="ee-run-btn"
                       onClick={handleTestRun}
                       disabled={running || withdrawing}
+                      title="Ctrl+Enter"
                     >
                       {running ? (
                         <><span className="spinner spinner-sm" style={{ width: 14, height: 14, borderWidth: 2 }} /> Running...</>
@@ -699,10 +742,18 @@ export default function EntryEditorPage() {
             <div className="ee-bottom-actions">
               {isEditable && (
                 <>
+                  <span className="ee-shortcuts-hint" style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, opacity: 0.75, marginRight: 4 }}>
+                    <Keyboard size={12} />
+                    <span><kbd>Ctrl+Enter</kbd> Run</span>
+                    <span style={{ margin: '0 2px' }}>·</span>
+                    <span><kbd>Ctrl+Shift+S</kbd> Save</span>
+                    <span style={{ margin: '0 2px' }}>·</span>
+                    <span><kbd>Ctrl+Shift+C</kbd> Copy Log</span>
+                  </span>
                   <span style={{ fontSize: '0.75rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)' }}>
                     {workersOnline > 0 ? `🟢 ${workersOnline} worker(s) online` : '⚪ No workers online'}
                   </span>
-                  <button className="btn btn-outline btn-sm" onClick={handleSave} disabled={saving}>
+                  <button className="btn btn-outline btn-sm" onClick={handleSave} disabled={saving} title="Ctrl+Shift+S">
                     {saving ? <span className="spinner spinner-sm" /> : saved ? '✓ Saved!' : 'Save draft'}
                   </button>
                   <button className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={submitting}>
