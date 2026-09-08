@@ -9,9 +9,10 @@
 #   python agent_cli.py list                       # List your assigned entries
 #   python agent_cli.py show <entry_id>            # Show entry details + prompt
 #   python agent_cli.py save <entry_id>            # Save think_block + phase2_code
-#   python agent_cli.py run <entry_id>             # Run test + wait for result
+#   python agent_cli.py run <entry_id>             # Run test + wait + download render
+#   python agent_cli.py verify <entry_id>          # Download render to verify visually
 #   python agent_cli.py submit <entry_id>          # Submit for review
-#   python agent_cli.py do <entry_id>              # Full workflow: save → run → check → save → submit
+#   python agent_cli.py do <entry_id>              # Workflow: save -> run -> download render (verify before submit)
 #
 # Environment variables (or .env file):
 #   ARQULAT_API_URL    — Backend URL (default: https://arqulat-p2-dataset-collector.onrender.com)
@@ -38,6 +39,7 @@ USERNAME = os.getenv("ARQULAT_USERNAME", "")
 PASSWORD = os.getenv("ARQULAT_PASSWORD", "")
 
 TOKEN_FILE = Path(__file__).parent / ".agent_token"
+OUTPUT_DIR = Path(__file__).parent / "agent_output"
 POLL_INTERVAL = 4  # seconds between job status checks
 MAX_POLL_ATTEMPTS = 90  # max ~6 minutes wait
 
@@ -74,6 +76,38 @@ def api_patch(path: str, json_data: dict) -> dict:
     resp = requests.patch(f"{API_URL}{path}", headers=auth_headers(), json=json_data, timeout=30)
     resp.raise_for_status()
     return resp.json()
+
+def api_download(path: str, save_to: Path) -> Path:
+    """Download a binary file (render image, model) from the API."""
+    resp = requests.get(f"{API_URL}{path}", headers=auth_headers(), timeout=120, stream=True)
+    resp.raise_for_status()
+    save_to.parent.mkdir(parents=True, exist_ok=True)
+    with open(save_to, "wb") as f:
+        for chunk in resp.iter_content(chunk_size=65536):
+            f.write(chunk)
+    return save_to
+
+
+def download_render_for_entry(entry_id: str, job: dict = None) -> Path:
+    """
+    Download the render image for an entry to a local file.
+    If a test-run job is provided, downloads the temp render.
+    Otherwise downloads the entry's saved render.
+    Returns the local file path.
+    """
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    if job and job.get("is_test_run") and job["status"] == "done" and job.get("temp_render_url"):
+        # Download temp render from test run
+        render_path = OUTPUT_DIR / f"{entry_id}_render.png"
+        job_id = job["id"]
+        api_download(f"/api/entries/{entry_id}/jobs/{job_id}/temp-render", render_path)
+    else:
+        # Download saved render from entry
+        render_path = OUTPUT_DIR / f"{entry_id}_render.png"
+        api_download(f"/api/entries/{entry_id}/render", render_path)
+    
+    return render_path
 
 
 # ─── Commands ───────────────────────────────────────────────────────
@@ -277,6 +311,17 @@ def cmd_run(args):
                 print(latest["error_log"])
             else:
                 print("  No errors. Script executed successfully.")
+            
+            # Auto-download the render for visual verification
+            try:
+                render_path = download_render_for_entry(entry_id, latest)
+                print(f"\n>>> RENDER SAVED: {render_path.resolve()}")
+                print(f"    View this image to verify the 3D model matches the prompt.")
+                print(f"    If it looks correct, run: python agent_cli.py submit {entry_id}")
+                print(f"    If NOT correct, fix code and re-run.")
+            except Exception as e:
+                print(f"  (Could not download render: {e})")
+            
             return {"success": True, "job": latest}
         elif latest["status"] == "failed":
             print(f"\nFAIL Test run FAILED!")
@@ -321,6 +366,31 @@ def cmd_submit(args):
     print(f"OK Submitted entry {result.get('code', entry_id)} for review (status: {result['status']})")
 
 
+def cmd_verify(args):
+    """Download the render image for visual verification."""
+    entry_id = args.entry_id
+    
+    # Check for latest successful test run first
+    jobs = api_get(f"/api/entries/{entry_id}/jobs")
+    test_job = None
+    if jobs:
+        test_jobs = [j for j in jobs if j.get("is_test_run") and j["status"] == "done"]
+        if test_jobs:
+            test_job = test_jobs[0]
+    
+    try:
+        render_path = download_render_for_entry(entry_id, test_job)
+        print(f"OK Render downloaded to: {render_path.resolve()}")
+        print(f"\n>>> VERIFY: Open this image and check if the 3D model matches the prompt.")
+        print(f"    If correct: python agent_cli.py submit {entry_id}")
+        print(f"    If wrong:   Fix code, then: python agent_cli.py run {entry_id}")
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            print("No render available yet. Run a test first: python agent_cli.py run <entry_id>")
+        else:
+            raise
+
+
 def cmd_logs(args):
     """Show terminal/error logs from the latest job."""
     entry_id = args.entry_id
@@ -339,7 +409,14 @@ def cmd_logs(args):
 
 
 def cmd_do(args):
-    """Full workflow: save -> run -> if success: promote + save + submit."""
+    """Workflow: save -> run -> download render for verification.
+    
+    Does NOT auto-submit. The agent must:
+    1. View the downloaded render image
+    2. Compare it to the prompt
+    3. If it matches: run 'python agent_cli.py submit <entry_id>'
+    4. If it doesn't match: fix code and re-run 'python agent_cli.py do <entry_id> ...'
+    """
     entry_id = args.entry_id
     
     # Step 1: Save code
@@ -365,22 +442,30 @@ def cmd_do(args):
         print("  Use: python agent_cli.py logs <entry_id>")
         sys.exit(1)
     
-    # Step 3: Promote + Save + Submit
-    print("\nStep 3: Promoting result and submitting...")
-    job = run_result["job"]
+    # Step 3: Render is already downloaded by cmd_run.
+    # Show the prompt again so the agent can compare.
+    print("\n" + "=" * 60)
+    print("VERIFICATION REQUIRED")
+    print("=" * 60)
     
-    # Promote test run
-    api_post(f"/api/entries/{entry_id}/promote-test", {"job_id": job["id"]})
-    print("  OK Test run promoted")
+    # Fetch and display the prompt for comparison
+    entries = api_get("/api/entries")
+    entry = next((e for e in entries if e["id"] == entry_id), None)
+    if entry and entry.get("prompt_id"):
+        try:
+            prompt = api_get(f"/api/prompts/{entry['prompt_id']}")
+            print(f"\nPrompt: {prompt.get('prompt_text', 'N/A')}")
+            if prompt.get("tags"):
+                print(f"Tags: {', '.join(prompt['tags'])}")
+        except: pass
     
-    # Save any text edits
-    if payload:
-        api_patch(f"/api/entries/{entry_id}", payload)
-    
-    # Submit
-    result = api_post(f"/api/entries/{entry_id}/submit")
-    print(f"  OK Submitted for review!")
-    print(f"\n=== DONE: {result.get('code', entry_id)} -> {result['status']} ===")
+    render_file = OUTPUT_DIR / f"{entry_id}_render.png"
+    print(f"\nRender image: {render_file.resolve()}")
+    print(f"\n>>> VIEW the render image above and compare to the prompt.")
+    print(f"    If it MATCHES the prompt:")
+    print(f"      python agent_cli.py submit {entry_id}")
+    print(f"    If it does NOT match:")
+    print(f"      Fix code.py, then: python agent_cli.py do {entry_id} --code-file code.py")
 
 
 # ─── CLI Parser ─────────────────────────────────────────────────────
@@ -395,6 +480,8 @@ Examples:
   python agent_cli.py show abc123-def456
   python agent_cli.py save abc123 --code-file code.py --think-block-file think.txt
   python agent_cli.py run abc123
+  python agent_cli.py verify abc123              # Download render to verify
+  python agent_cli.py submit abc123              # Submit after verification
   python agent_cli.py do abc123 --code-file code.py --think-block-file think.txt
         """
     )
@@ -436,12 +523,16 @@ Examples:
     p_submit = sub.add_parser("submit", help="Submit entry for review")
     p_submit.add_argument("entry_id")
     
+    # verify
+    p_verify = sub.add_parser("verify", help="Download render image for visual verification")
+    p_verify.add_argument("entry_id")
+    
     # logs
     p_logs = sub.add_parser("logs", help="Show latest job output/errors")
     p_logs.add_argument("entry_id")
     
-    # do (full workflow)
-    p_do = sub.add_parser("do", help="Full workflow: save -> run -> promote -> submit")
+    # do (full workflow minus submit)
+    p_do = sub.add_parser("do", help="Workflow: save -> run -> download render (verify before submit)")
     p_do.add_argument("entry_id")
     p_do.add_argument("--think-block-file", default=None)
     p_do.add_argument("--code-file", default=None)
@@ -458,6 +549,7 @@ Examples:
         "show": cmd_show,
         "save": cmd_save,
         "run": cmd_run,
+        "verify": cmd_verify,
         "promote": cmd_promote,
         "submit": cmd_submit,
         "logs": cmd_logs,
