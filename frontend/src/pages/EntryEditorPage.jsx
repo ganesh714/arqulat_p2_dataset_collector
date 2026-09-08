@@ -131,7 +131,7 @@ export default function EntryEditorPage() {
   const [latestJob, setLatestJob] = useState(null);
   const [viewMode, setViewMode] = useState('3d'); // '3d' or 'render'
   const [workersOnline, setWorkersOnline] = useState(0);
-  const [isPromptOpen, setIsPromptOpen] = useState(false);
+  const [isPromptOpen, setIsPromptOpen] = useState(true);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [terminalCopied, setTerminalCopied] = useState(false);
   const [promoting, setPromoting] = useState(false);
