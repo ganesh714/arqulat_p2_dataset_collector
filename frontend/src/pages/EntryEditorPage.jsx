@@ -498,6 +498,18 @@ export default function EntryEditorPage() {
             {cloning ? <span className="spinner spinner-sm" /> : '📑 Clone to v2'}
           </button>
         </div>
+        
+        {/* Shortcuts Hint in Header */}
+        {isEditable && (
+          <div className="ee-shortcuts-hint" style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, opacity: 0.75, marginLeft: 'auto' }}>
+            <Keyboard size={12} />
+            <span><kbd>Ctrl+Enter</kbd> Run</span>
+            <span style={{ margin: '0 2px' }}>·</span>
+            <span><kbd>Ctrl+Shift+S</kbd> Save</span>
+            <span style={{ margin: '0 2px' }}>·</span>
+            <span><kbd>Ctrl+Shift+C</kbd> Copy Log</span>
+          </div>
+        )}
       </div>
 
       <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '110px' : '52px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
@@ -742,14 +754,6 @@ export default function EntryEditorPage() {
             <div className="ee-bottom-actions">
               {isEditable && (
                 <>
-                  <span className="ee-shortcuts-hint" style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, opacity: 0.75, marginRight: 4 }}>
-                    <Keyboard size={12} />
-                    <span><kbd>Ctrl+Enter</kbd> Run</span>
-                    <span style={{ margin: '0 2px' }}>·</span>
-                    <span><kbd>Ctrl+Shift+S</kbd> Save</span>
-                    <span style={{ margin: '0 2px' }}>·</span>
-                    <span><kbd>Ctrl+Shift+C</kbd> Copy Log</span>
-                  </span>
                   <span style={{ fontSize: '0.75rem', color: workersOnline > 0 ? 'var(--status-approved)' : 'var(--text-muted)' }}>
                     {workersOnline > 0 ? `🟢 ${workersOnline} worker(s) online` : '⚪ No workers online'}
                   </span>
