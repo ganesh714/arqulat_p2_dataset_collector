@@ -161,6 +161,8 @@ async def list_prompts(
     if category_id:
         query = query.where(Prompt.category_id == category_id)
         
+    query = query.order_by(Prompt.code.asc())
+        
     result = await db.execute(query)
     return result.scalars().all()
 
