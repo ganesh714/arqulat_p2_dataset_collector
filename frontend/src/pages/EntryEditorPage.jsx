@@ -678,6 +678,8 @@ export default function EntryEditorPage() {
                     alt="Generated 3D Model"
                     auto-rotate
                     camera-controls
+                    min-camera-orbit="auto 0deg auto"
+                    max-camera-orbit="auto 180deg auto"
                     shadow-intensity="1"
                     interaction-prompt="none"
                     style={{ width: '100%', height: '100%' }}
