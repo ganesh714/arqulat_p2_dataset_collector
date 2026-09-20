@@ -366,6 +366,13 @@ def cmd_submit(args):
     print(f"OK Submitted entry {result.get('code', entry_id)} for review (status: {result['status']})")
 
 
+def cmd_withdraw(args):
+    """Withdraw a submitted entry back to draft status."""
+    entry_id = args.entry_id
+    result = api_post(f"/api/entries/{entry_id}/withdraw")
+    print(f"OK Withdrew entry {result.get('code', entry_id)} from review (status: {result['status']})")
+
+
 def cmd_verify(args):
     """Download the render image for visual verification."""
     entry_id = args.entry_id
@@ -482,6 +489,7 @@ Examples:
   python agent_cli.py run abc123
   python agent_cli.py verify abc123              # Download render to verify
   python agent_cli.py submit abc123              # Submit after verification
+  python agent_cli.py withdraw abc123            # Withdraw a submitted entry
   python agent_cli.py do abc123 --code-file code.py --think-block-file think.txt
         """
     )
@@ -523,6 +531,10 @@ Examples:
     p_submit = sub.add_parser("submit", help="Submit entry for review")
     p_submit.add_argument("entry_id")
     
+    # withdraw
+    p_withdraw = sub.add_parser("withdraw", help="Withdraw a submitted entry back to draft")
+    p_withdraw.add_argument("entry_id")
+    
     # verify
     p_verify = sub.add_parser("verify", help="Download render image for visual verification")
     p_verify.add_argument("entry_id")
@@ -552,6 +564,7 @@ Examples:
         "verify": cmd_verify,
         "promote": cmd_promote,
         "submit": cmd_submit,
+        "withdraw": cmd_withdraw,
         "logs": cmd_logs,
         "do": cmd_do,
     }
