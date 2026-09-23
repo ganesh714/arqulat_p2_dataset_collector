@@ -19,6 +19,10 @@ class PromptUpdate(BaseModel):
     prompt_text: Optional[str] = None
     tags: Optional[List[str]] = None
 
+class BatchPromptOut(BaseModel):
+    batch_id: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)
+
 class PromptResponse(BaseModel):
     id: uuid.UUID
     code: Optional[str] = None
@@ -28,5 +32,6 @@ class PromptResponse(BaseModel):
     created_by: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    batch_prompts: List[BatchPromptOut] = []
 
     model_config = ConfigDict(from_attributes=True)

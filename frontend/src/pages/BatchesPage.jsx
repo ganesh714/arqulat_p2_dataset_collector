@@ -472,6 +472,11 @@ export default function BatchesPage() {
                       {sortedGlobalPrompts.map(p => {
                         const alreadyInBatch = batchPromptIds.has(p.id);
                         const checked = adminSelectedPromptIds.has(p.id);
+                        
+                        // Check if it's in any OTHER batches
+                        const otherBatches = (p.batch_prompts || []).filter(bp => bp.batch_id !== activeBatch?.id);
+                        const otherBatchNames = otherBatches.map(bp => batches.find(b => b.id === bp.batch_id)?.name).filter(Boolean);
+                        
                         return (
                           <label key={p.id} style={{
                             display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
@@ -488,7 +493,12 @@ export default function BatchesPage() {
                                   {p.code || '—'}
                                 </span>
                                 {alreadyInBatch && (
-                                  <span className="text-muted" style={{ fontSize: '0.7rem' }}>✓ in batch</span>
+                                  <span className="text-muted" style={{ fontSize: '0.7rem' }}>✓ in this batch</span>
+                                )}
+                                {!alreadyInBatch && otherBatchNames.length > 0 && (
+                                  <span className="text-muted" style={{ fontSize: '0.7rem', color: '#f59e0b' }}>
+                                    ⚠️ in: {otherBatchNames.join(', ')}
+                                  </span>
                                 )}
                               </div>
                               <div style={{ fontSize: '0.85rem', lineHeight: 1.4 }}>{p.prompt_text}</div>

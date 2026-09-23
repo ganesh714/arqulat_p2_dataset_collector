@@ -2,6 +2,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 import uuid
 
@@ -157,14 +158,14 @@ async def list_prompts(
     """
     List prompts, optionally filtered by category.
     """
-    query = select(Prompt)
+    query = select(Prompt).options(selectinload(Prompt.batch_prompts))
     if category_id:
         query = query.where(Prompt.category_id == category_id)
         
     query = query.order_by(Prompt.code.asc())
         
     result = await db.execute(query)
-    return result.scalars().all()
+    return result.scalars().unique().all()
 
 @router.get("/{prompt_id}", response_model=PromptResponse)
 async def get_prompt(
