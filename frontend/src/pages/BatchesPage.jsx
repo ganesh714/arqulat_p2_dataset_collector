@@ -6,6 +6,7 @@ export default function BatchesPage() {
   const { user } = useAuth();
   const [batches, setBatches] = useState([]);
   const [prompts, setPrompts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,12 +37,13 @@ export default function BatchesPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const requests = [api.get('/api/batches'), api.get('/api/prompts')];
+      const requests = [api.get('/api/batches'), api.get('/api/prompts'), api.get('/api/taxonomy/phases')];
       if (user?.role === 'admin') requests.push(api.get('/api/users'));
       const results = await Promise.all(requests);
       setBatches(results[0].data);
       setPrompts(results[1].data);
-      if (results[2]) setUsers(results[2].data);
+      setCategories(results[2].data);
+      if (results[3]) setUsers(results[3].data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }
@@ -67,6 +69,12 @@ export default function BatchesPage() {
   const [addingPrompts, setAddingPrompts] = useState(false);
   const [assignSearch, setAssignSearch] = useState('');
   const [adminSearch, setAdminSearch] = useState('');
+  
+  // Filter state
+  const [filterPhaseId, setFilterPhaseId] = useState('');
+  const [filterSubphaseId, setFilterSubphaseId] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [hideAssigned, setHideAssigned] = useState(false);
 
   // Add members state
   const [newMemberIds, setNewMemberIds] = useState(new Set());
@@ -195,17 +203,33 @@ export default function BatchesPage() {
   const sortedBatchPrompts = detail?.batch_prompts ? [...detail.batch_prompts].sort((a, b) => (a.code || '').localeCompare(b.code || '')) : [];
   const sortedGlobalPrompts = [...prompts].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
 
+  const allowedCategoryIds = (() => {
+    if (filterCategoryId) return new Set([filterCategoryId]);
+    if (filterSubphaseId) {
+      const sp = categories.flatMap(p => p.subphases || []).find(s => s.id === filterSubphaseId);
+      return new Set((sp?.categories || []).map(c => c.id));
+    }
+    if (filterPhaseId) {
+      const ph = categories.find(p => p.id === filterPhaseId);
+      const sps = ph?.subphases || [];
+      const cats = sps.flatMap(s => s.categories || []);
+      return new Set(cats.map(c => c.id));
+    }
+    return null;
+  })();
+
   const filteredBatchPrompts = sortedBatchPrompts.filter(p => 
     !assignSearch || 
     (p.code || '').toLowerCase().includes(assignSearch.toLowerCase()) || 
     (p.prompt_text || '').toLowerCase().includes(assignSearch.toLowerCase())
   );
 
-  const filteredGlobalPrompts = sortedGlobalPrompts.filter(p => 
-    !adminSearch || 
-    (p.code || '').toLowerCase().includes(adminSearch.toLowerCase()) || 
-    (p.prompt_text || '').toLowerCase().includes(adminSearch.toLowerCase())
-  );
+  const filteredGlobalPrompts = sortedGlobalPrompts.filter(p => {
+    if (adminSearch && !(p.code || '').toLowerCase().includes(adminSearch.toLowerCase()) && !(p.prompt_text || '').toLowerCase().includes(adminSearch.toLowerCase())) return false;
+    if (allowedCategoryIds && !allowedCategoryIds.has(p.category_id)) return false;
+    if (hideAssigned && p.batch_prompts && p.batch_prompts.length > 0) return false;
+    return true;
+  });
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><span className="spinner" /></div>;
 
@@ -480,6 +504,25 @@ export default function BatchesPage() {
               {/* ── MANAGE PROMPTS (Admin/Lead View) ── */}
               {panelView === 'manage_prompts' && (
                 <>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <select className="form-input" style={{ width: 150, padding: '4px 8px', fontSize: '0.8rem' }} value={filterPhaseId} onChange={e => { setFilterPhaseId(e.target.value); setFilterSubphaseId(''); setFilterCategoryId(''); }}>
+                      <option value="">All Phases...</option>
+                      {categories.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <select className="form-input" style={{ width: 150, padding: '4px 8px', fontSize: '0.8rem' }} value={filterSubphaseId} onChange={e => { setFilterSubphaseId(e.target.value); setFilterCategoryId(''); }} disabled={!filterPhaseId}>
+                      <option value="">All Subphases...</option>
+                      {categories.find(p => p.id === filterPhaseId)?.subphases?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <select className="form-input" style={{ width: 150, padding: '4px 8px', fontSize: '0.8rem' }} value={filterCategoryId} onChange={e => setFilterCategoryId(e.target.value)} disabled={!filterSubphaseId}>
+                      <option value="">All Categories...</option>
+                      {categories.find(p => p.id === filterPhaseId)?.subphases?.find(s => s.id === filterSubphaseId)?.categories?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}>
+                      <input type="checkbox" checked={hideAssigned} onChange={e => setHideAssigned(e.target.checked)} style={{ accentColor: 'var(--accent)' }} />
+                      Hide already assigned to any batch
+                    </label>
+                  </div>
+                  
                   <div style={{
                     display: 'flex', gap: 12, marginBottom: 16, padding: '12px 16px',
                     background: 'var(--bg-primary)', borderRadius: 'var(--radius)', alignItems: 'center', justifyContent: 'space-between'
