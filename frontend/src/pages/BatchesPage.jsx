@@ -65,6 +65,8 @@ export default function BatchesPage() {
 
   const [adminSelectedPromptIds, setAdminSelectedPromptIds] = useState(new Set());
   const [addingPrompts, setAddingPrompts] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
+  const [adminSearch, setAdminSearch] = useState('');
 
   // Add members state
   const [newMemberIds, setNewMemberIds] = useState(new Set());
@@ -192,6 +194,18 @@ export default function BatchesPage() {
   const sortedAssignments = detail?.assignments ? [...detail.assignments].sort((a, b) => (a.prompt_code || '').localeCompare(b.prompt_code || '')) : [];
   const sortedBatchPrompts = detail?.batch_prompts ? [...detail.batch_prompts].sort((a, b) => (a.code || '').localeCompare(b.code || '')) : [];
   const sortedGlobalPrompts = [...prompts].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+
+  const filteredBatchPrompts = sortedBatchPrompts.filter(p => 
+    !assignSearch || 
+    (p.code || '').toLowerCase().includes(assignSearch.toLowerCase()) || 
+    (p.prompt_text || '').toLowerCase().includes(assignSearch.toLowerCase())
+  );
+
+  const filteredGlobalPrompts = sortedGlobalPrompts.filter(p => 
+    !adminSearch || 
+    (p.code || '').toLowerCase().includes(adminSearch.toLowerCase()) || 
+    (p.prompt_text || '').toLowerCase().includes(adminSearch.toLowerCase())
+  );
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><span className="spinner" /></div>;
 
@@ -411,15 +425,27 @@ export default function BatchesPage() {
                   </div>
 
                   {/* Prompt Checklist from Batch's Prompts */}
-                  <label style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: 8, display: 'block' }}>
-                    Select Prompts ({detail.batch_prompts?.length || 0} total in this batch, {assignedPromptIds.size} already assigned)
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 500, display: 'block' }}>
+                      Select Prompts ({filteredBatchPrompts.length} shown / {detail.batch_prompts?.length || 0} total in this batch, {assignedPromptIds.size} already assigned)
+                    </label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Search code or prompt..." 
+                      style={{ padding: '4px 8px', fontSize: '0.8rem', width: 200 }}
+                      value={assignSearch}
+                      onChange={e => setAssignSearch(e.target.value)}
+                    />
+                  </div>
 
                   {(!detail.batch_prompts || detail.batch_prompts.length === 0) ? (
                     <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts have been added to this batch yet.</p>
+                  ) : filteredBatchPrompts.length === 0 ? (
+                    <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts match your search.</p>
                   ) : (
                     <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                      {sortedBatchPrompts.map(p => {
+                      {filteredBatchPrompts.map(p => {
                         const alreadyAssigned = assignedPromptIds.has(p.id);
                         const checked = selectedPromptIds.has(p.id);
                         return (
@@ -458,7 +484,17 @@ export default function BatchesPage() {
                     display: 'flex', gap: 12, marginBottom: 16, padding: '12px 16px',
                     background: 'var(--bg-primary)', borderRadius: 'var(--radius)', alignItems: 'center', justifyContent: 'space-between'
                   }}>
-                    <span style={{ fontSize: '0.85rem' }}>Select prompts from the global pool to add to this batch.</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: '0.85rem' }}>Select prompts from the global pool to add to this batch.</span>
+                      <input 
+                        type="text" 
+                        className="form-input" 
+                        placeholder="Search code or prompt..." 
+                        style={{ padding: '4px 8px', fontSize: '0.8rem', width: 220 }}
+                        value={adminSearch}
+                        onChange={e => setAdminSearch(e.target.value)}
+                      />
+                    </div>
                     <button className="btn btn-primary btn-sm" onClick={handleAddPromptsToBatch}
                       disabled={addingPrompts || adminSelectedPromptIds.size === 0} style={{ whiteSpace: 'nowrap' }}>
                       {addingPrompts ? <span className="spinner" /> : `Add to Batch (${adminSelectedPromptIds.size})`}
@@ -467,9 +503,11 @@ export default function BatchesPage() {
 
                   {prompts.length === 0 ? (
                     <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts exist in the system yet.</p>
+                  ) : filteredGlobalPrompts.length === 0 ? (
+                    <p className="text-muted" style={{ padding: 16, textAlign: 'center' }}>No prompts match your search.</p>
                   ) : (
                     <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                      {sortedGlobalPrompts.map(p => {
+                      {filteredGlobalPrompts.map(p => {
                         const alreadyInBatch = batchPromptIds.has(p.id);
                         const checked = adminSelectedPromptIds.has(p.id);
                         
