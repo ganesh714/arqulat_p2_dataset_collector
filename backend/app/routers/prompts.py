@@ -174,7 +174,11 @@ async def get_prompt(
     current_user: User = Depends(get_current_user)
 ):
     """Get a single prompt by ID."""
-    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
+    result = await db.execute(
+        select(Prompt)
+        .where(Prompt.id == prompt_id)
+        .options(selectinload(Prompt.batch_prompts))
+    )
     prompt = result.scalar_one_or_none()
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt not found")
@@ -188,7 +192,11 @@ async def update_prompt(
     current_lead: User = Depends(require_lead)
 ):
     """Edit an existing prompt."""
-    result = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
+    result = await db.execute(
+        select(Prompt)
+        .where(Prompt.id == prompt_id)
+        .options(selectinload(Prompt.batch_prompts))
+    )
     prompt = result.scalar_one_or_none()
     if not prompt:
         raise HTTPException(status_code=404, detail="Prompt not found")
