@@ -7,27 +7,104 @@ export default function EntryListPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('code'); // code | updated | status
+  const [sortBy, setSortBy] = useState('code');
   const [sortDir, setSortDir] = useState('asc');
+
+  // Taxonomy + batch dropdown state
+  const [taxonomy, setTaxonomy] = useState([]);       // phases → subphases → categories
+  const [prompts, setPrompts] = useState([]);          // all prompts (for prompt_id → category_id mapping)
+  const [batches, setBatches] = useState([]);           // all batches
+  const [phaseFilter, setPhaseFilter] = useState('');
+  const [subphaseFilter, setSubphaseFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [batchFilter, setBatchFilter] = useState('');
+
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchEntries();
+    fetchAll();
   }, []);
 
-  async function fetchEntries() {
+  async function fetchAll() {
     setLoading(true);
     try {
-      const res = await api.get('/api/entries');
-      setEntries(res.data);
+      const [entriesRes, taxRes, promptsRes, batchesRes] = await Promise.all([
+        api.get('/api/entries'),
+        api.get('/api/taxonomy/phases'),
+        api.get('/api/prompts'),
+        api.get('/api/batches'),
+      ]);
+      setEntries(entriesRes.data);
+      setTaxonomy(taxRes.data);
+      setPrompts(promptsRes.data);
+      setBatches(batchesRes.data);
     } catch (err) {
-      console.error('Failed to load entries', err);
+      console.error('Failed to load data', err);
+      // Try loading just entries if the other calls fail
+      try {
+        const res = await api.get('/api/entries');
+        setEntries(res.data);
+      } catch {}
     } finally {
       setLoading(false);
     }
   }
 
-  // Compute status counts from ALL entries (not filtered)
+  // ── Lookup maps ──
+  // prompt_id → category_id
+  const promptToCategoryMap = useMemo(() => {
+    const map = {};
+    for (const p of prompts) {
+      map[p.id] = p.category_id;
+    }
+    return map;
+  }, [prompts]);
+
+  // category_id → { subphase_id, phase_id }
+  const categoryLookup = useMemo(() => {
+    const map = {};
+    for (const phase of taxonomy) {
+      for (const sub of phase.subphases || []) {
+        for (const cat of sub.categories || []) {
+          map[cat.id] = { subphase_id: sub.id, phase_id: phase.id };
+        }
+      }
+    }
+    return map;
+  }, [taxonomy]);
+
+  // ── Cascading dropdown options ──
+  const subphaseOptions = useMemo(() => {
+    if (!phaseFilter) return [];
+    const phase = taxonomy.find((p) => p.id === phaseFilter);
+    return phase?.subphases || [];
+  }, [taxonomy, phaseFilter]);
+
+  const categoryOptions = useMemo(() => {
+    if (!subphaseFilter) return [];
+    const sub = subphaseOptions.find((s) => s.id === subphaseFilter);
+    return sub?.categories || [];
+  }, [subphaseOptions, subphaseFilter]);
+
+  // Batches available for the dropdown (all batches the user can see)
+  const batchOptions = useMemo(() => {
+    // Only show batches that actually have entries in the current dataset
+    const batchIdsInEntries = new Set(entries.map((e) => e.batch_id));
+    return batches.filter((b) => batchIdsInEntries.has(b.id));
+  }, [batches, entries]);
+
+  // Reset child dropdowns when parent changes
+  function handlePhaseChange(val) {
+    setPhaseFilter(val);
+    setSubphaseFilter('');
+    setCategoryFilter('');
+  }
+  function handleSubphaseChange(val) {
+    setSubphaseFilter(val);
+    setCategoryFilter('');
+  }
+
+  // ── Status counts (from ALL entries) ──
   const statusCounts = useMemo(() => {
     const counts = { all: entries.length };
     for (const e of entries) {
@@ -36,7 +113,7 @@ export default function EntryListPage() {
     return counts;
   }, [entries]);
 
-  // Filtered + searched + sorted entries
+  // ── Filtered + searched + sorted entries ──
   const filteredEntries = useMemo(() => {
     let result = entries;
 
@@ -45,7 +122,48 @@ export default function EntryListPage() {
       result = result.filter((e) => e.status === statusFilter);
     }
 
-    // Search filter (matches code, batch_id prefix)
+    // Batch filter
+    if (batchFilter) {
+      result = result.filter((e) => e.batch_id === batchFilter);
+    }
+
+    // Taxonomy filters (phase → subphase → category)
+    if (categoryFilter) {
+      // Exact category match
+      result = result.filter((e) => {
+        const catId = promptToCategoryMap[e.prompt_id];
+        return catId === categoryFilter;
+      });
+    } else if (subphaseFilter) {
+      // All categories in this subphase
+      const catIds = new Set(categoryOptions.map((c) => c.id));
+      // Also include categories from subphase even if categoryOptions hasn't updated
+      const sub = subphaseOptions.find((s) => s.id === subphaseFilter);
+      if (sub) {
+        for (const cat of sub.categories || []) catIds.add(cat.id);
+      }
+      result = result.filter((e) => {
+        const catId = promptToCategoryMap[e.prompt_id];
+        return catIds.has(catId);
+      });
+    } else if (phaseFilter) {
+      // All categories in all subphases of this phase
+      const catIds = new Set();
+      const phase = taxonomy.find((p) => p.id === phaseFilter);
+      if (phase) {
+        for (const sub of phase.subphases || []) {
+          for (const cat of sub.categories || []) {
+            catIds.add(cat.id);
+          }
+        }
+      }
+      result = result.filter((e) => {
+        const catId = promptToCategoryMap[e.prompt_id];
+        return catIds.has(catId);
+      });
+    }
+
+    // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter((e) => {
@@ -69,7 +187,7 @@ export default function EntryListPage() {
     });
 
     return result;
-  }, [entries, statusFilter, searchQuery, sortBy, sortDir]);
+  }, [entries, statusFilter, batchFilter, phaseFilter, subphaseFilter, categoryFilter, searchQuery, sortBy, sortDir, promptToCategoryMap, taxonomy, categoryOptions, subphaseOptions]);
 
   function toggleSort(field) {
     if (sortBy === field) {
@@ -85,6 +203,13 @@ export default function EntryListPage() {
     return sortDir === 'asc' ? '↑' : '↓';
   };
 
+  // Batch name lookup
+  const batchNameMap = useMemo(() => {
+    const map = {};
+    for (const b of batches) map[b.id] = b.name;
+    return map;
+  }, [batches]);
+
   const statuses = ['all', 'draft', 'needs_fix', 'submitted', 'approved', 'rejected'];
   const statusEmoji = {
     all: '📋',
@@ -94,6 +219,17 @@ export default function EntryListPage() {
     approved: '✅',
     rejected: '❌',
   };
+
+  const hasAnyDropdownFilter = phaseFilter || subphaseFilter || categoryFilter || batchFilter;
+
+  function clearAllFilters() {
+    setStatusFilter('all');
+    setSearchQuery('');
+    setPhaseFilter('');
+    setSubphaseFilter('');
+    setCategoryFilter('');
+    setBatchFilter('');
+  }
 
   return (
     <div>
@@ -119,6 +255,61 @@ export default function EntryListPage() {
               )}
             </button>
           ))}
+        </div>
+
+        {/* Taxonomy + Batch dropdowns */}
+        <div className="el-dropdowns">
+          <select
+            className="el-dropdown"
+            value={phaseFilter}
+            onChange={(e) => handlePhaseChange(e.target.value)}
+          >
+            <option value="">All Phases</option>
+            {taxonomy.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+
+          <select
+            className="el-dropdown"
+            value={subphaseFilter}
+            onChange={(e) => handleSubphaseChange(e.target.value)}
+            disabled={!phaseFilter}
+          >
+            <option value="">All Subphases</option>
+            {subphaseOptions.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+
+          <select
+            className="el-dropdown"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            disabled={!subphaseFilter}
+          >
+            <option value="">All Categories</option>
+            {categoryOptions.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+
+          <select
+            className="el-dropdown"
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value)}
+          >
+            <option value="">All Batches</option>
+            {batchOptions.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+
+          {hasAnyDropdownFilter && (
+            <button className="el-clear-btn" onClick={clearAllFilters} title="Clear all filters">
+              ✕ Clear
+            </button>
+          )}
         </div>
 
         {/* Search + Sort */}
@@ -176,6 +367,9 @@ export default function EntryListPage() {
               · filtered by <span className={`status-badge status-${statusFilter}`}>{statusFilter.replace('_', ' ')}</span>
             </span>
           )}
+          {batchFilter && batchNameMap[batchFilter] && (
+            <span> · batch: {batchNameMap[batchFilter]}</span>
+          )}
           {searchQuery && (
             <span> · matching "{searchQuery}"</span>
           )}
@@ -214,8 +408,8 @@ export default function EntryListPage() {
                   {entry.code || `Entry ${entry.id.substring(0, 8)}`}
                 </span>
                 <span className="entry-meta">
-                  Updated {new Date(entry.updated_at).toLocaleDateString()} &middot; Batch{' '}
-                  {entry.batch_id.substring(0, 8)}
+                  Updated {new Date(entry.updated_at).toLocaleDateString()} &middot;{' '}
+                  {batchNameMap[entry.batch_id] || `Batch ${entry.batch_id.substring(0, 8)}`}
                 </span>
               </div>
               <div className="entry-card-right">

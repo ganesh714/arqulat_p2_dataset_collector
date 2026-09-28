@@ -478,6 +478,59 @@ textarea.form-input {
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* Dropdown row */
+.el-dropdowns {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.el-dropdown {
+  padding: 7px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-width: 130px;
+  max-width: 200px;
+}
+
+.el-dropdown:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.el-dropdown:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.el-dropdown option {
+  background: var(--bg-card);
+  color: var(--text);
+}
+
+.el-clear-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.el-clear-btn:hover {
+  border-color: var(--status-rejected);
+  color: var(--status-rejected);
+}
+
 /* Controls row: search + sort */
 .el-controls {
   display: flex;
