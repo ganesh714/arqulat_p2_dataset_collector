@@ -510,7 +510,6 @@ export default function EntryEditorPage() {
             <span><kbd>Ctrl+Shift+C</kbd> Copy Log</span>
           </div>
         )}
-        )}
       </div>
 
       {entry.reviewer_notes && (
