@@ -76,6 +76,10 @@ async def submit_review(
     elif review_in.action == ReviewAction.needs_fix:
         entry.status = EntryStatus.needs_fix
         
+    # Save reviewer notes to the entry so contributors can see them
+    if review_in.notes:
+        entry.reviewer_notes = review_in.notes
+        
     # 7. Create notification if lead override
     if is_lead_override:
         notification = Notification(
