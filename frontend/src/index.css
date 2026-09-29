@@ -1212,3 +1212,221 @@ textarea.form-input {
   border-radius: 3px;
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 }
+
+/* ─── Review Entry Page ─── */
+.rv-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rv-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rv-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rv-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.rv-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .rv-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rv-viewer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rv-viewer-box {
+  width: 100%;
+  height: 450px;
+  background: #1a1a2e;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.rv-viewer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.rv-prompt-card {
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.rv-prompt-card h3 {
+  font-size: 0.85rem;
+  margin: 0 0 8px 0;
+  color: var(--text-muted);
+}
+
+.rv-prompt-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.rv-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.rv-tag {
+  padding: 3px 10px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+
+.rv-details-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rv-section h3 {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+
+.rv-code-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.rv-code-tall {
+  max-height: 350px;
+}
+
+.rv-notes-display {
+  padding: 12px;
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.rv-review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.rv-review-form h3 {
+  font-size: 0.95rem;
+  margin: 0;
+  color: var(--text);
+}
+
+.rv-decision-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.rv-decision-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.rv-decision-btn:hover {
+  border-color: var(--text-muted);
+}
+
+.rv-decision-approve.rv-decision-active {
+  border-color: var(--status-approved);
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--status-approved);
+}
+
+.rv-decision-fix.rv-decision-active {
+  border-color: var(--status-needs-fix);
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--status-needs-fix);
+}
+
+.rv-decision-reject.rv-decision-active {
+  border-color: var(--status-rejected);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--status-rejected);
+}
+
+.rv-notes-input {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.rv-already-reviewed {
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Open hint on review queue cards */
+.rv-open-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.entry-card:hover .rv-open-hint {
+  opacity: 1;
+}

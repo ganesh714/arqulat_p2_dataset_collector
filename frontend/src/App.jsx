@@ -6,6 +6,7 @@ import EntryListPage from './pages/EntryListPage';
 import EntryEditorPage from './pages/EntryEditorPage';
 import NotificationsPage from './pages/NotificationsPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
+import ReviewEntryPage from './pages/ReviewEntryPage';
 import BatchesPage from './pages/BatchesPage';
 import WorkersPage from './pages/WorkersPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -51,6 +52,7 @@ function AppRoutes() {
 
         {/* Real routes for later phases */}
         <Route path="review-queue" element={<ReviewQueuePage />} />
+        <Route path="review/:id" element={<ReviewEntryPage />} />
         <Route path="batches" element={<BatchesPage />} />
         <Route path="prompts" element={<PromptsPage />} />
         <Route path="workers" element={<WorkersPage />} />
