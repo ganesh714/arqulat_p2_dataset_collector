@@ -510,7 +510,15 @@ export default function EntryEditorPage() {
             <span><kbd>Ctrl+Shift+C</kbd> Copy Log</span>
           </div>
         )}
+        )}
       </div>
+
+      {entry.reviewer_notes && (
+        <div className="ee-reviewer-notes" style={{ margin: '0 16px 12px 16px', padding: 12, background: 'rgba(249, 115, 22, 0.1)', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: 'var(--radius)', fontSize: '0.85rem' }}>
+          <h4 style={{ margin: '0 0 6px 0', color: 'var(--status-needs-fix)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📝 Reviewer Feedback</h4>
+          <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text)' }}>{entry.reviewer_notes}</div>
+        </div>
+      )}
 
       <div className="ee-prompt-header" style={{ maxHeight: isPromptOpen ? '110px' : '52px', overflowY: isPromptOpen ? 'auto' : 'hidden', transition: 'max-height 0.2s' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
