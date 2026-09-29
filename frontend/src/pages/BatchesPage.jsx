@@ -309,6 +309,7 @@ export default function BatchesPage() {
                 marginBottom: 4, borderRadius: 'var(--radius)',
                 border: activeBatch?.id === b.id ? '1px solid var(--accent)' : '1px solid var(--border)',
                 background: activeBatch?.id === b.id ? 'rgba(99,102,241,0.08)' : 'var(--bg-card)',
+                color: 'var(--text)',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}>
               <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>{b.name}</div>
