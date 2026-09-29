@@ -308,7 +308,7 @@ def cmd_run(args):
             print(f"\nOK Test run SUCCEEDED!")
             if latest.get("error_log"):
                 print(f"\n--- Terminal Output ---")
-                print(latest["error_log"])
+                print(latest["error_log"].encode("utf-8").decode("cp1252", errors="ignore"))
             else:
                 print("  No errors. Script executed successfully.")
             
@@ -327,7 +327,7 @@ def cmd_run(args):
             print(f"\nFAIL Test run FAILED!")
             if latest.get("error_log"):
                 print(f"\n--- Error Log ---")
-                print(latest["error_log"])
+                print(latest["error_log"].encode("utf-8").decode("cp1252", errors="ignore"))
             return {"success": False, "job": latest}
     
     print(f"\nWARNING: Timed out after {MAX_POLL_ATTEMPTS * POLL_INTERVAL}s. Job may still be running.")
@@ -410,7 +410,7 @@ def cmd_logs(args):
     print(f"Job: {latest['id']} | Status: {latest['status']} | Test run: {latest.get('is_test_run', False)}")
     if latest.get("error_log"):
         print(f"\n--- Output ---")
-        print(latest["error_log"])
+        print(latest["error_log"].encode("utf-8").decode("cp1252", errors="ignore"))
     else:
         print("  (No output available)")
 
